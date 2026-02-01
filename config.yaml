@@ -83,13 +83,16 @@ excel:
 
 # Data Source Configuration
 data_source:
-  type: "auto"  # auto, excel, sql_server, postgresql
-  config:
-    # SQL Server specific
-    driver: "ODBC Driver 17 for SQL Server"
-    server: "localhost"
-    database: "ExcelMind"
-    trusted_connection: "yes"
+  type: "excel"  # Options: excel, postgresql, sqlserver, auto
+  config: {}
+  
+  # SQL Server Configuration (Override via Environment Variables)
+  # MSSQL_HOST: "localhost"
+  # MSSQL_PORT: 1433
+  # MSSQL_DB: "master"
+  # MSSQL_USER: "sa"
+  # MSSQL_PASSWORD: ""
+  # MSSQL_DRIVER: "ODBC Driver 17 for SQL Server"
 
 # Logging Configuration
 logging:

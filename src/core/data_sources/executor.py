@@ -7,9 +7,9 @@ from .excel_source import ExcelDataSource
 from .postgres_source import PostgreSQLDataSource
 
 try:
-    from .sql_source import SqlServerDataSource
+    from .sqlserver_source import SQLServerDataSource
 except ImportError:
-    SqlServerDataSource = None
+    SQLServerDataSource = None
 
 try:
     from src.config.settings import get_config
@@ -57,7 +57,7 @@ class DataSourceExecutor:
         """根据配置选择数据源策略
 
         Args:
-            source_type: 数据源类型 ("sql_server", "excel", "auto")
+            source_type: 数据源类型 ("sqlserver", "postgresql", "excel", "auto")
             **kwargs: 额外参数
                 - query: SQL Server 查询语句
                 - file_path: Excel 文件路径
@@ -65,16 +65,22 @@ class DataSourceExecutor:
         """
         config = get_config()
 
-        if source_type == "sql_server" or (
+        if source_type == "sqlserver" or (
             source_type == "auto" and self._manager.sql_server_available
         ):
-            self._strategy = SqlServerDataSource(
-                query=kwargs.get("query", ""),
-                table_name_alias=kwargs.get("table_name_alias", "SQL Query Result"),
-            )
+            if SQLServerDataSource:
+                self._strategy = SQLServerDataSource(
+                    # query=kwargs.get("query", ""), # SQLServerDataSource __init__ doesn't accept query
+                    # table_name_alias=kwargs.get("table_name_alias", "SQL Query Result"),
+                )
+            else:
+                raise ImportError("SQLServerDataSource not available")
 
         elif source_type == "postgresql":
-            self._strategy = PostgreSQLDataSource()
+            if PostgreSQLDataSource:
+                self._strategy = PostgreSQLDataSource()
+            else:
+                raise ImportError("PostgreSQLDataSource not available")
 
         elif source_type == "excel" or (
             source_type == "auto" and kwargs.get("file_path")
@@ -168,8 +174,8 @@ class DataSourceExecutor:
         result = manager.detect_sources(table_names)
         primary_source = result["primary_source"]
 
-        if primary_source == "sql_server":
-            self.configure(source_type="sql_server", query="")
+        if primary_source == "sqlserver":
+            self.configure(source_type="sqlserver", query="")
         elif primary_source == "excel":
             if table_names:
                 self.configure(

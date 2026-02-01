@@ -192,7 +192,7 @@ class DataSourceContextProvider:
             )
         else:
             return self._executor.execute_from_state(
-                {"sql_query": sql_query, "data_source_type": "sql_server"}
+                {"sql_query": sql_query, "data_source_type": "sqlserver"}
             )
 
     def clear(self) -> None:

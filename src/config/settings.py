@@ -113,7 +113,7 @@ class ExcelConfig(BaseModel):
 class DataSourceConfig(BaseModel):
     """数据源配置"""
 
-    type: str = "excel"
+    type: str = "excel"  # 当前激活的数据源类型: excel, postgresql, sqlserver
     config: Dict[str, Any] = Field(default_factory=dict)
 
     # PostgreSQL specific config (loaded from env)
@@ -133,6 +133,27 @@ class DataSourceConfig(BaseModel):
         default_factory=lambda: os.environ.get("POSTGRES_PASSWORD", "postgres")
     )
     pg_schema: str = "public"
+
+    # SQL Server specific config (loaded from env)
+    mssql_host: str = Field(
+        default_factory=lambda: os.environ.get("MSSQL_HOST", "localhost")
+    )
+    mssql_port: int = Field(
+        default_factory=lambda: int(os.environ.get("MSSQL_PORT", "1433"))
+    )
+    mssql_database: str = Field(
+        default_factory=lambda: os.environ.get("MSSQL_DB", "master")
+    )
+    mssql_user: str = Field(
+        default_factory=lambda: os.environ.get("MSSQL_USER", "sa")
+    )
+    mssql_password: str = Field(
+        default_factory=lambda: os.environ.get("MSSQL_PASSWORD", "")
+    )
+    mssql_driver: str = Field(
+        default_factory=lambda: os.environ.get("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
+    )
+    mssql_schema: str = "dbo"
 
 
 class LoggingConfig(BaseModel):

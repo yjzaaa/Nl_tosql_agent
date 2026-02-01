@@ -16,6 +16,11 @@ try:
 except ImportError:
     PostgreSQLDataSource = None
 
+try:
+    from src.core.data_sources.sqlserver_source import SQLServerDataSource
+except ImportError:
+    SQLServerDataSource = None
+
 # 导入配置
 try:
     from src.config.settings import get_config
@@ -50,15 +55,33 @@ class DataSourceManager:
             except Exception as e:
                 pass  # PostgreSQL不可用
 
+        # 检查SQL Server
+        if SQLServerDataSource:
+            try:
+                mssql_source = SQLServerDataSource()
+                if mssql_source.is_available():
+                    strategies["sqlserver"] = mssql_source
+                    self.sql_server_available = True
+            except Exception as e:
+                pass  # SQL Server不可用
+
         # 检查Excel
         if ExcelDataSource:
             strategies["excel"] = None  # Excel需要file_path，稍后创建
 
         self._available_strategies = strategies
 
-        # 设置默认策略
-        if "postgresql" in strategies:
+        # 根据配置设置默认策略
+        config = get_config()
+        if config and config.data_source.type in strategies:
+            self.set_strategy(config.data_source.type)
+        # Fallback 逻辑
+        elif "postgresql" in strategies:
             self.set_strategy("postgresql")
+        elif "sqlserver" in strategies:
+            self.set_strategy("sqlserver")
+        elif "excel" in strategies:
+            self.set_strategy("excel")
     
     def set_strategy(self, strategy_name: str):
         """
