@@ -25,14 +25,14 @@
 graph TD
     A[Analyze Intent] --> B[Load Context]
     B --> C[Generate SQL]
-    C --> D[Validate SQL]
+    C --> D{Validate SQL}
     D -- Valid --> E[Execute SQL]
     D -- Invalid --> C
-    E --> F[Review Result]
+    E --> F{Review Result}
     F -- Passed --> G[Refine Answer]
     F -- Failed --> C
     G --> H[Visualization]
-    H --> End
+    H --> I[End]
 ```
 
 ## 🚀 快速开始
