@@ -1,0 +1,668 @@
+"""Excel 加载与管理模块 - 支持多表管理"""
+
+import uuid, json
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
+
+from src.config.settings import get_config
+from src.core.data_sources import DataSourceStrategy, ExcelDataSource
+
+# ============== 外部配置：字段名白名单 ==============
+# 在此配置需要保留所有类型值的字段名，可根据需求随时修改
+FIELD_WHITELIST = [
+    "CC",
+]
+
+
+# ===================================================
+@dataclass
+class TableInfo:
+    """表的元信息"""
+
+    id: str
+    filename: str
+    file_path: str
+    sheet_name: str
+    total_rows: int
+    total_columns: int
+    loaded_at: datetime = field(default_factory=datetime.now)
+    is_joined: bool = False  # 是否为连接表
+    source_tables: List[str] = field(default_factory=list)  # 源表名称列表
+
+
+class ExcelLoader:
+    """Excel 文件加载器"""
+
+    def __init__(self):
+        self._df: Optional[pd.DataFrame] = None
+        self._file_path: Optional[str] = None
+        self._sheet_name: Optional[str] = None
+        self._all_sheets: List[str] = []
+        self._strategy: Optional[DataSourceStrategy] = None
+
+        # 业务逻辑上下文
+        self.business_logic_context: str = ""
+        self.common_questions_context: str = ""
+
+    @property
+    def is_loaded(self) -> bool:
+        """是否已加载文件"""
+        return self._df is not None
+
+    @property
+    def dataframe(self) -> pd.DataFrame:
+        """获取 DataFrame"""
+        if self._df is None:
+            raise ValueError("未加载 Excel 文件")
+        return self._df
+
+    def load(
+        self, source: Union[str, DataSourceStrategy], sheet_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """加载数据源
+
+        Args:
+            source: 文件路径(str) 或 数据源策略对象(DataSourceStrategy)
+            sheet_name: 工作表名称（仅当 source 为文件路径时使用）
+
+        Returns:
+            文件结构信息
+        """
+        if isinstance(source, str):
+            # 兼容旧接口：source 是文件路径
+            self._strategy = ExcelDataSource(source, sheet_name)
+        elif isinstance(source, DataSourceStrategy):
+            self._strategy = source
+        else:
+            raise ValueError(f"不支持的数据源类型: {type(source)}")
+
+        try:
+            # 加载数据
+            self._df = self._strategy.load_data()
+
+            # 加载元数据
+            metadata = self._strategy.get_metadata()
+            self._file_path = metadata.get("file_path", "unknown_source")
+            self._sheet_name = metadata.get("sheet_name", "unknown_sheet")
+            self._all_sheets = metadata.get("all_sheets", [])
+
+            # 加载上下文
+            context = self._strategy.get_context()
+            self.business_logic_context = context.get("business_logic", "")
+            self.common_questions_context = context.get("common_questions", "")
+
+            return self.get_structure()
+        except Exception as e:
+            # 清理状态
+            self._df = None
+            raise e
+
+    def get_structure(self) -> Dict[str, Any]:
+        """获取 Excel 结构信息"""
+        if self._df is None:
+            raise ValueError("未加载 Excel 文件")
+
+        config = get_config()
+
+        # 列信息
+        columns_info = []
+        for col in self._df.columns:
+            col_data = self._df[col]
+            dtype = str(col_data.dtype)
+            non_null = col_data.count()
+            null_count = col_data.isna().sum()
+
+            columns_info.append(
+                {
+                    "name": str(col),
+                    "dtype": dtype,
+                    "non_null_count": int(non_null),
+                    "null_count": int(null_count),
+                }
+            )
+
+        return {
+            "file_path": self._file_path,
+            "sheet_name": self._sheet_name,
+            "all_sheets": self._all_sheets,
+            "total_rows": len(self._df),
+            "total_columns": len(self._df.columns),
+            "columns": columns_info,
+        }
+
+    def get_preview(self, n_rows: Optional[int] = None) -> Dict[str, Any]:
+        """获取数据预览
+
+        Args:
+            n_rows: 预览行数，默认使用配置值
+
+        Returns:
+            预览数据
+        """
+        if self._df is None:
+            raise ValueError("未加载 Excel 文件")
+
+        config = get_config()
+        if n_rows is None:
+            n_rows = config.excel.max_preview_rows
+
+        preview_df = self._df.head(n_rows)
+
+        return {
+            "columns": list(self._df.columns),
+            "data": preview_df.to_dict(orient="records"),
+            "preview_rows": len(preview_df),
+            "total_rows": len(self._df),
+        }
+
+    def get_summary(self) -> str:
+        """获取 Excel 摘要信息（用于 Agent 上下文）"""
+        if self._df is None:
+            return "未加载 Excel 文件"
+
+        structure = self.get_structure()
+        preview = self.get_preview()
+
+        lines = [
+            f"📊 **已加载 Excel 文件**: {structure['file_path']}",
+            f"📋 **当前工作表**: {structure['sheet_name']}",
+            f"📑 **所有工作表**: {', '.join(structure['all_sheets'])}",
+            f"📏 **数据规模**: {structure['total_rows']} 行 × {structure['total_columns']} 列",
+            "",
+            "**列信息**:",
+        ]
+
+        for col in structure["columns"]:
+            lines.append(
+                f"  - `{col['name']}` ({col['dtype']}): {col['non_null_count']} 非空值"
+            )
+
+        lines.append("")
+        lines.append(f"**前 {preview['preview_rows']} 行数据预览**:")
+
+        # 简单表格格式
+        if preview["data"]:
+            headers = preview["columns"]
+            lines.append("| " + " | ".join(str(h) for h in headers) + " |")
+            lines.append("| " + " | ".join("---" for _ in headers) + " |")
+            for row in preview["data"]:
+                values = [str(row.get(h, ""))[:20] for h in headers]  # 截断长值
+                lines.append("| " + " | ".join(values) + " |")
+
+        # 追加业务上下文
+        if self.business_logic_context:
+            lines.append("")
+            lines.append("## 📚 业务解释和逻辑")
+            lines.append(self.business_logic_context)
+
+        if self.common_questions_context:
+            lines.append("")
+            lines.append("## ❓ 常见问题参考")
+            lines.append(self.common_questions_context)
+
+        return "\n".join(lines)
+
+
+class MultiExcelLoader:
+    """多表管理器 - 管理多个 ExcelLoader 实例"""
+
+    def __init__(self):
+        self._tables: Dict[str, ExcelLoader] = {}  # table_id -> ExcelLoader
+        self._table_infos: Dict[str, TableInfo] = {}  # table_id -> TableInfo
+        self._active_table_id: Optional[str] = None
+
+    @property
+    def is_loaded(self) -> bool:
+        """是否有任何表已加载"""
+        return len(self._tables) > 0
+
+    @property
+    def active_table_id(self) -> Optional[str]:
+        """获取当前活跃表ID"""
+        return self._active_table_id
+
+    def add_table(
+        self, file_path: str, sheet_name: Optional[str] = None
+    ) -> tuple[str, Dict[str, Any]]:
+        """添加一张新表 (兼容旧接口，内部使用 ExcelDataSource 策略)
+
+        Args:
+            file_path: Excel 文件路径
+            sheet_name: 工作表名称
+
+        Returns:
+            (表ID, 结构信息)
+        """
+        return self.add_data_source(ExcelDataSource(file_path, sheet_name))
+
+    def add_data_source(
+        self, strategy: DataSourceStrategy
+    ) -> tuple[str, Dict[str, Any]]:
+        """添加一个数据源策略
+
+        Args:
+            strategy: 数据源策略实例
+
+        Returns:
+            (表ID, 结构信息)
+        """
+        # 创建新的加载器并加载数据
+        loader = ExcelLoader()
+        structure = loader.load(strategy)
+
+        # 生成唯一ID
+        table_id = str(uuid.uuid4())[:8]
+
+        # 获取元数据
+        metadata = strategy.get_metadata()
+        filename = metadata.get("filename", "unknown")
+
+        # 存储表信息
+        self._tables[table_id] = loader
+        self._table_infos[table_id] = TableInfo(
+            id=table_id,
+            filename=filename,
+            file_path=metadata.get("file_path", ""),
+            sheet_name=metadata.get("sheet_name", ""),
+            total_rows=structure["total_rows"],
+            total_columns=structure["total_columns"],
+        )
+
+        # 自动设为活跃表
+        self._active_table_id = table_id
+
+        return table_id, structure
+
+    def remove_table(self, table_id: str) -> bool:
+        """删除指定表
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            是否删除成功
+        """
+        if table_id not in self._tables:
+            return False
+
+        del self._tables[table_id]
+        del self._table_infos[table_id]
+
+        # 如果删除的是活跃表，切换到另一张表或设为None
+        if self._active_table_id == table_id:
+            if self._tables:
+                self._active_table_id = next(iter(self._tables.keys()))
+            else:
+                self._active_table_id = None
+
+        return True
+
+    def get_table(self, table_id: str) -> Optional[ExcelLoader]:
+        """获取指定表的加载器"""
+        return self._tables.get(table_id)
+
+    def get_table_info(self, table_id: str) -> Optional[TableInfo]:
+        """获取指定表的元信息"""
+        return self._table_infos.get(table_id)
+
+    def get_active_loader(self) -> Optional[ExcelLoader]:
+        """获取当前活跃表的加载器"""
+        if self._active_table_id:
+            return self._tables.get(self._active_table_id)
+        return None
+
+    def get_active_table_info(self) -> Optional[TableInfo]:
+        """获取当前活跃表的元信息"""
+        if self._active_table_id:
+            return self._table_infos.get(self._active_table_id)
+        return None
+
+    def set_active_table(self, table_id: str) -> bool:
+        """设置当前活跃表
+
+        Args:
+            table_id: 表ID
+
+        Returns:
+            是否设置成功
+        """
+        if table_id not in self._tables:
+            return False
+        self._active_table_id = table_id
+        return True
+
+    def list_tables(self) -> List[Dict[str, Any]]:
+        """获取所有表的信息列表"""
+        result = []
+        for table_id, info in self._table_infos.items():
+            result.append(
+                {
+                    "id": info.id,
+                    "filename": info.filename,
+                    "sheet_name": info.sheet_name,
+                    "total_rows": info.total_rows,
+                    "total_columns": info.total_columns,
+                    "loaded_at": info.loaded_at.isoformat(),
+                    "is_active": table_id == self._active_table_id,
+                    "is_joined": info.is_joined,
+                    "source_tables": info.source_tables,
+                }
+            )
+        return result
+
+    def get_table_columns(self, table_id: str) -> List[str]:
+        """获取指定表的列名列表"""
+        loader = self.get_table(table_id)
+        if loader and loader.is_loaded:
+            return list(loader.dataframe.columns)
+        return []
+
+    def join_tables(
+        self,
+        table1_id: str,
+        table2_id: str,
+        keys1: List[str],
+        keys2: List[str],
+        join_type: str = "inner",
+        new_name: str = "连接表",
+    ) -> tuple[str, Dict[str, Any]]:
+        """连接两张表（支持多字段连接）
+
+        Args:
+            table1_id: 表1 ID
+            table2_id: 表2 ID
+            keys1: 表1 连接字段列表
+            keys2: 表2 连接字段列表
+            join_type: 连接类型 (inner/left/right/outer)
+            new_name: 新表名称
+
+        Returns:
+            (新表ID, 结构信息)
+        """
+        # 验证表存在
+        loader1 = self.get_table(table1_id)
+        loader2 = self.get_table(table2_id)
+        if not loader1 or not loader2:
+            raise ValueError("指定的表不存在")
+
+        info1 = self.get_table_info(table1_id)
+        info2 = self.get_table_info(table2_id)
+
+        df1 = loader1.dataframe
+        df2 = loader2.dataframe
+
+        # 验证字段数量一致
+        if len(keys1) != len(keys2):
+            raise ValueError("两表的连接字段数量必须一致")
+
+        if len(keys1) == 0:
+            raise ValueError("至少需要指定一个连接字段")
+
+        # 验证字段存在
+        for key in keys1:
+            if key not in df1.columns:
+                raise ValueError(f"表1中不存在字段: {key}")
+        for key in keys2:
+            if key not in df2.columns:
+                raise ValueError(f"表2中不存在字段: {key}")
+
+        # 验证连接类型
+        valid_join_types = ["inner", "left", "right", "outer"]
+        if join_type not in valid_join_types:
+            raise ValueError(f"不支持的连接类型: {join_type}，可选: {valid_join_types}")
+
+        # 执行连接
+        merged_df = pd.merge(
+            df1,
+            df2,
+            left_on=keys1,
+            right_on=keys2,
+            how=join_type,
+            suffixes=("_表1", "_表2"),
+        )
+
+        # 创建新的加载器
+        new_loader = ExcelLoader()
+        new_loader._df = merged_df
+        new_loader._file_path = f"[连接表] {new_name}"
+        new_loader._sheet_name = "merged"
+        new_loader._all_sheets = ["merged"]
+
+        # 生成唯一ID
+        table_id = str(uuid.uuid4())[:8]
+
+        # 存储表信息
+        self._tables[table_id] = new_loader
+        self._table_infos[table_id] = TableInfo(
+            id=table_id,
+            filename=f"🔗 {new_name}",
+            file_path=f"[连接表] {new_name}",
+            sheet_name="merged",
+            total_rows=len(merged_df),
+            total_columns=len(merged_df.columns),
+            is_joined=True,
+            source_tables=[info1.filename, info2.filename],
+        )
+
+        # 自动设为活跃表
+        self._active_table_id = table_id
+
+        return table_id, new_loader.get_structure()
+
+    def get_loaded_dataframes(self) -> Dict[str, pd.DataFrame]:
+        """获取所有已加载的 DataFrame，键为文件名（无后缀，已清洗）"""
+        dataframes = {}
+        for table_id, loader in self._tables.items():
+            if not loader.is_loaded:
+                continue
+
+            info = self._table_infos.get(table_id)
+            if not info:
+                continue
+
+            # 优先使用工作表名称作为变量名，因为同一个文件可能加载多个 Sheet
+            # 如果文件名不同但 Sheet 名相同，后续加载的会覆盖前面的（暂时接受这种限制，或者后续优化）
+            raw_name = info.sheet_name
+
+            # 如果 Sheet 名是默认的 "Sheet1" 等，或者为了防止冲突，可以考虑组合文件名
+            # 但在这个场景下，CostDataBase 和 Table7 显然是更有意义的名字
+
+            # 简单清洗：将非字母数字下划线的字符替换为下划线
+            clean_name = raw_name.replace(" ", "_").replace("-", "_")
+
+            # 如果开头是数字，加前缀
+            if clean_name and clean_name[0].isdigit():
+                clean_name = f"df_{clean_name}"
+
+            dataframes[clean_name] = loader.dataframe
+
+        return dataframes
+
+    def get_active_summary(self) -> str:
+        """获取当前活跃表的摘要"""
+        loader = self.get_active_loader()
+        if not loader:
+            return "未加载 Excel 文件"
+
+        summary = loader.get_summary()
+
+        # 追加其他可用表的信息
+        loaded_dfs = self.get_loaded_dataframes()
+        if len(loaded_dfs) > 1:
+            summary += "\n\n## 📚 可用数据表 (可在代码中直接使用)\n"
+            summary += "支持多表查询，已为您注入以下 DataFrame 变量（变量名源自 Sheet 名称）：\n"
+            for var_name in loaded_dfs.keys():
+                summary += f"- `{var_name}`\n"
+
+        return summary
+
+    def get_summary(self) -> str:
+        """获取当前活跃表的摘要（兼容旧接口）"""
+        return self.get_active_summary()
+
+    @property
+    def dataframe(self) -> pd.DataFrame:
+        """获取当前活跃表的 DataFrame（兼容旧接口）"""
+        loader = self.get_active_loader()
+        if loader:
+            return loader.dataframe
+        raise ValueError("未加载 Excel 文件")
+
+    # ===================== 新增核心方法 =====================
+    def get_all_tables_field_values_json(
+        self,
+        ensure_ascii: bool = False,
+        indent: int = 4,
+        keep_order: bool = True,
+        field_whitelist: List[str] = None,  # 可选参数，支持运行时覆盖外部配置
+    ) -> str:
+        """
+        获取当前对象中所有表的「表-字段-字段值」层级结构的 JSON 格式字符串
+        新增：1. 字符串字段值去除首尾空白 2. 字段值列表去重（可选保留首次出现顺序）
+
+        Args:
+            ensure_ascii: 是否确保 ASCII 编码（False 支持中文显示）
+            indent: JSON 格式化缩进空格数
+            keep_order: 是否保留字段值的首次出现顺序（True=保留，False=不保留，高效）
+
+        Returns:
+            结构化的 JSON 字符串
+        """
+        # 1. 构建层级化的 Python 字典（表->字段->字段值）
+        all_tables_data = {}
+        # 初始化白名单：优先使用方法传入值，无则使用外部全局配置
+        target_whitelist = field_whitelist or FIELD_WHITELIST
+
+        for table_id, loader in self._tables.items():
+            # 跳过未成功加载数据的表
+            if not loader or not loader.is_loaded:
+                continue
+
+            # 获取表的元信息，用于构建表的标识
+            table_info = self.get_table_info(table_id)
+            if not table_info:
+                continue
+
+            # 表的唯一标识（组合 ID、文件名、工作表名，提高可读性）
+            table_identifier = f"{table_info.filename}（ID：{table_id}，Sheet：{table_info.sheet_name}）"
+
+            # 获取表的 DataFrame 并转换为字典格式（方便提取字段和值）
+            df = loader.dataframe
+            # 处理 pandas 中的特殊类型（NaT、NaN 等），转为 JSON 可序列化格式
+            df_clean = df.where(pd.notna(df), None)  # NaN/NaT 替换为 None
+
+            # 构建字段-字段值结构：仅保留字符串类型，去空白+去重
+            field_values = {}
+            for column in df_clean.columns:
+                # 提取该列所有值
+                column_values = df_clean[column].tolist()
+                processed_values = []
+
+                # 步骤1：根据字段是否在白名单，执行不同的筛选/保留逻辑
+                if column in target_whitelist:
+                    # 分支1：白名单字段 - 保留所有类型值，仅对字符串做去空白处理
+                    for val in column_values:
+                        # 对字符串类型：去首尾空白
+                        if isinstance(val, str):
+                            stripped_val = val.strip()
+                            # 保留去空白后的字符串（包括空字符串，如需过滤可添加判断）
+                            processed_values.append(stripped_val)
+                        # 对时间类型：格式化为 ISO 字符串（保证 JSON 可序列化）
+                        elif isinstance(val, pd.Timestamp) or isinstance(val, datetime):
+                            processed_values.append(val.isoformat())
+                        # 其他所有类型：直接保留（数字、布尔、None 等）
+                        else:
+                            processed_values.append(val)
+                else:
+                    # 分支2：非白名单字段 - 仅保留字符串类型值，且去空白
+                    for val in column_values:
+                        if isinstance(val, str):
+                            stripped_val = val.strip()
+                            # 可选：过滤去空白后的空字符串
+                            if stripped_val:
+                                processed_values.append(stripped_val)
+
+                # 步骤2：对处理后的列表进行去重（兼容所有类型）
+                deduplicated_values = []
+                if keep_order:
+                    # 保留首次出现顺序的去重（推荐，兼容不可哈希类型）
+                    seen = set()
+                    for val in processed_values:
+                        # 处理不可哈希类型（如列表），转为字符串判断唯一性
+                        try:
+                            # 可哈希类型直接使用，不可哈希类型转为字符串
+                            val_hashable = (
+                                val
+                                if isinstance(
+                                    val, (int, float, str, bool, None.__class__)
+                                )
+                                else str(val)
+                            )
+                        except:
+                            val_hashable = str(val)
+
+                        if val_hashable not in seen:
+                            seen.add(val_hashable)
+                            deduplicated_values.append(val)
+                else:
+                    # 高效去重（不保留顺序），兼容不可哈希类型降级处理
+                    try:
+                        deduplicated_values = list(set(processed_values))
+                    except:
+                        seen = set()
+                        for val in processed_values:
+                            val_hashable = str(val)
+                            if val_hashable not in seen:
+                                seen.add(val_hashable)
+                                deduplicated_values.append(val)
+
+                # 存入最终处理结果
+                field_values[column] = deduplicated_values
+
+            # 将当前表的数据存入总字典
+            all_tables_data[table_identifier] = {
+                "table_meta": {
+                    "table_id": table_id,
+                    "filename": table_info.filename,
+                    "sheet_name": table_info.sheet_name,
+                    "total_rows": table_info.total_rows,
+                    "total_columns": table_info.total_columns,
+                    "is_active": table_id == self._active_table_id,
+                    "is_joined": table_info.is_joined,
+                },
+                "field_values": field_values,
+            }
+
+        # 2. 将 Python 字典转换为 JSON 字符串
+        try:
+            json_str = json.dumps(
+                all_tables_data,
+                ensure_ascii=ensure_ascii,  # 支持中文（False 时中文不转义）
+                indent=indent,  # 格式化缩进，提高可读性
+                default=str,  # 兜底处理剩余不可序列化对象
+            )
+            return json_str
+        except Exception as e:
+            raise Exception(f"JSON 序列化失败：{str(e)}") from e
+
+
+# 全局实例 - 使用多表管理器
+_loader: Optional[MultiExcelLoader] = None
+
+
+def get_loader() -> MultiExcelLoader:
+    """获取全局 MultiExcelLoader 实例"""
+    global _loader
+    if _loader is None:
+        _loader = MultiExcelLoader()
+    return _loader
+
+
+def reset_loader() -> None:
+    """重置全局 MultiExcelLoader 实例"""
+    global _loader
+    _loader = MultiExcelLoader()
