@@ -1,0 +1,22 @@
+# 模型配置
+model:
+  provider: "openai"
+  model_name: "qwen2.5-1.5b-instruct"
+  api_key: "${OPENAI_API_KEY:}"
+  base_url: "${OPENAI_BASE_URL:http://localhost:1234/v1}"
+  temperature: 0.1
+  max_tokens: 4096
+
+# Excel 配置
+excel:
+  max_preview_rows: 20
+  default_result_limit: 20
+  max_result_limit: 1000
+
+# 数据源配置
+data_source:
+  type: "excel"
+
+# 日志配置
+logging:
+  level: "INFO"

@@ -12,45 +12,41 @@ class IntentAnalysisResult(BaseModel):
 
     intent_type: str = Field(
         ...,
-        description="Type of query intent (e.g., 'query', 'aggregate', 'filter', 'join')"
+        description="Type of query intent (e.g., 'query', 'aggregate', 'filter', 'join')",
     )
     confidence: float = Field(
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Confidence score of the intent analysis (0.0 to 1.0)"
+        description="Confidence score of the intent analysis (0.0 to 1.0)",
     )
     entities: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Extracted entities from the query (e.g., table names, column names, filters)"
+        description="Extracted entities from the query (e.g., table names, column names, filters)",
     )
     query_type: str = Field(
         default="simple",
-        description="Type of SQL query (simple, aggregate, join, complex)"
+        description="Type of SQL query (simple, aggregate, join, complex)",
     )
     filters: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Extracted filter conditions (e.g., {'column': 'function', 'value': 'IT', 'operator': '='})"
+        description="Extracted filter conditions (e.g., {'column': 'function', 'value': 'IT', 'operator': '='})",
     )
     groupings: List[str] = Field(
         default_factory=list,
-        description="Columns to group by (e.g., ['function', 'month'])"
+        description="Columns to group by (e.g., ['function', 'month'])",
     )
     aggregations: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Aggregation operations (e.g., {'column': 'amount', 'function': 'SUM'})"
+        description="Aggregation operations (e.g., {'column': 'amount', 'function': 'SUM'})",
     )
     sort_order: Optional[Dict[str, str]] = Field(
         default=None,
-        description="Sort order (e.g., {'column': 'amount', 'direction': 'DESC'})"
+        description="Sort order (e.g., {'column': 'amount', 'direction': 'DESC'})",
     )
-    limit: Optional[int] = Field(
-        default=None,
-        description="Limit on number of results"
-    )
+    limit: Optional[int] = Field(default=None, description="Limit on number of results")
     explanation: Optional[str] = Field(
-        default=None,
-        description="Explanation of the intent analysis"
+        default=None, description="Explanation of the intent analysis"
     )
 
     class Config:
@@ -59,8 +55,8 @@ class IntentAnalysisResult(BaseModel):
                 "intent_type": "aggregate",
                 "confidence": 0.95,
                 "entities": [
-                    {"type": "table", "value": "cost_database"},
-                    {"type": "column", "value": "amount"}
+                    {"type": "table", "value": "SSME_FI_InsightBot_CostDataBase"},
+                    {"type": "column", "value": "amount"},
                 ],
                 "query_type": "aggregate",
                 "filters": [],
@@ -68,7 +64,7 @@ class IntentAnalysisResult(BaseModel):
                 "aggregations": [{"column": "amount", "function": "SUM"}],
                 "sort_order": {"column": "amount", "direction": "DESC"},
                 "limit": None,
-                "explanation": "User wants to see total costs grouped by function type"
+                "explanation": "User wants to see total costs grouped by function type",
             }
         }
 
@@ -81,29 +77,26 @@ class SQLGenerationResult(BaseModel):
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Confidence score of the SQL generation (0.0 to 1.0)"
+        description="Confidence score of the SQL generation (0.0 to 1.0)",
     )
     explanation: Optional[str] = Field(
-        default=None,
-        description="Explanation of how the SQL query was generated"
+        default=None, description="Explanation of how the SQL query was generated"
     )
     tables_used: List[str] = Field(
-        default_factory=list,
-        description="Tables used in the SQL query"
+        default_factory=list, description="Tables used in the SQL query"
     )
     columns_used: List[str] = Field(
-        default_factory=list,
-        description="Columns used in the SQL query"
+        default_factory=list, description="Columns used in the SQL query"
     )
 
     class Config:
         json_schema_extra = {
             "example": {
-                "sql_query": "SELECT function, SUM(amount) FROM cost_database GROUP BY function ORDER BY SUM(amount) DESC",
+                "sql_query": "SELECT function, SUM(amount) FROM SSME_FI_InsightBot_CostDataBase GROUP BY function ORDER BY SUM(amount) DESC",
                 "confidence": 0.9,
                 "explanation": "Aggregated amounts by function type",
-                "tables_used": ["cost_database"],
-                "columns_used": ["function", "amount"]
+                "tables_used": ["SSME_FI_InsightBot_CostDataBase"],
+                "columns_used": ["function", "amount"],
             }
         }
 
@@ -113,16 +106,13 @@ class SQLValidationResult(BaseModel):
 
     is_valid: bool = Field(..., description="Whether the SQL query is valid")
     issues: List[str] = Field(
-        default_factory=list,
-        description="List of validation issues found"
+        default_factory=list, description="List of validation issues found"
     )
     suggestions: List[str] = Field(
-        default_factory=list,
-        description="List of suggestions for improvement"
+        default_factory=list, description="List of suggestions for improvement"
     )
     parsed_query: Optional[str] = Field(
-        default=None,
-        description="Parsed/normalized SQL query"
+        default=None, description="Parsed/normalized SQL query"
     )
 
     class Config:
@@ -131,7 +121,7 @@ class SQLValidationResult(BaseModel):
                 "is_valid": True,
                 "issues": [],
                 "suggestions": ["Consider adding LIMIT clause"],
-                "parsed_query": "SELECT function, SUM(amount) FROM cost_database GROUP BY function"
+                "parsed_query": "SELECT function, SUM(amount) FROM SSME_FI_InsightBot_CostDataBase GROUP BY function",
             }
         }
 
@@ -141,15 +131,15 @@ class QueryExecutionResult(BaseModel):
 
     success: bool = Field(..., description="Whether the query executed successfully")
     data: Optional[List[Dict[str, Any]]] = Field(
-        default=None,
-        description="Query result data as list of dictionaries"
+        default=None, description="Query result data as list of dictionaries"
     )
     row_count: int = Field(default=0, description="Number of rows returned")
     execution_time: Optional[float] = Field(
-        default=None,
-        description="Query execution time in seconds"
+        default=None, description="Query execution time in seconds"
     )
-    error: Optional[str] = Field(default=None, description="Error message if execution failed")
+    error: Optional[str] = Field(
+        default=None, description="Error message if execution failed"
+    )
 
     class Config:
         json_schema_extra = {
@@ -157,11 +147,11 @@ class QueryExecutionResult(BaseModel):
                 "success": True,
                 "data": [
                     {"function": "IT", "sum": 139274913.84},
-                    {"function": "HR", "sum": 70191482.78}
+                    {"function": "HR", "sum": 70191482.78},
                 ],
                 "row_count": 6,
                 "execution_time": 0.123,
-                "error": None
+                "error": None,
             }
         }
 
@@ -174,19 +164,16 @@ class ResultReviewResult(BaseModel):
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Confidence score of the result review (0.0 to 1.0)"
+        description="Confidence score of the result review (0.0 to 1.0)",
     )
     issues: List[str] = Field(
-        default_factory=list,
-        description="List of issues found in the result"
+        default_factory=list, description="List of issues found in the result"
     )
     suggestions: List[str] = Field(
-        default_factory=list,
-        description="List of suggestions for improvement"
+        default_factory=list, description="List of suggestions for improvement"
     )
     refined_answer: Optional[str] = Field(
-        default=None,
-        description="Refined natural language answer"
+        default=None, description="Refined natural language answer"
     )
 
     class Config:
@@ -196,7 +183,7 @@ class ResultReviewResult(BaseModel):
                 "confidence": 0.95,
                 "issues": [],
                 "suggestions": [],
-                "refined_answer": "IT功能总成本为139,274,913.84元"
+                "refined_answer": "IT功能总成本为139,274,913.84元",
             }
         }
 
@@ -205,19 +192,33 @@ class AgentState(BaseModel):
     """Agent state for workflow"""
 
     trace_id: Optional[str] = Field(default=None, description="Unique trace ID")
-    messages: List[Any] = Field(default_factory=list, description="Conversation messages")
-    user_query: Optional[str] = Field(default=None, description="User's natural language query")
+    messages: List[Any] = Field(
+        default_factory=list, description="Conversation messages"
+    )
+    user_query: Optional[str] = Field(
+        default=None, description="User's natural language query"
+    )
     intent_analysis: Optional[IntentAnalysisResult] = Field(
         default=None, description="Intent analysis result"
     )
     sql_query: Optional[str] = Field(default=None, description="Generated SQL query")
     sql_valid: bool = Field(default=False, description="Whether SQL is valid")
-    execution_result: Optional[str] = Field(default=None, description="Query execution result")
-    review_passed: Optional[bool] = Field(default=None, description="Whether result review passed")
-    review_message: Optional[str] = Field(default=None, description="Refined answer message")
-    table_names: Optional[List[str]] = Field(default=None, description="Table names to query")
+    execution_result: Optional[str] = Field(
+        default=None, description="Query execution result"
+    )
+    review_passed: Optional[bool] = Field(
+        default=None, description="Whether result review passed"
+    )
+    review_message: Optional[str] = Field(
+        default=None, description="Refined answer message"
+    )
+    table_names: Optional[List[str]] = Field(
+        default=None, description="Table names to query"
+    )
     data_source_type: str = Field(default="excel", description="Data source type")
-    error_message: Optional[str] = Field(default=None, description="Error message if any")
+    error_message: Optional[str] = Field(
+        default=None, description="Error message if any"
+    )
     retry_count: int = Field(default=0, description="Number of retries attempted")
     skill: Optional[Any] = Field(default=None, description="Current skill")
     skill_name: Optional[str] = Field(default=None, description="Current skill name")
@@ -232,8 +233,7 @@ class TableSchema(BaseModel):
     table_name: str = Field(..., description="Table name")
     description: Optional[str] = Field(default=None, description="Table description")
     columns: List[Dict[str, Any]] = Field(
-        default_factory=list,
-        description="List of column definitions"
+        default_factory=list, description="List of column definitions"
     )
     primary_key: Optional[str] = Field(default=None, description="Primary key column")
     row_count: int = Field(default=0, description="Number of rows in table")
@@ -241,16 +241,20 @@ class TableSchema(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "table_name": "cost_database",
+                "table_name": "SSME_FI_InsightBot_CostDataBase",
                 "description": "Cost database containing cost allocation records",
                 "columns": [
                     {"name": "year", "type": "varchar", "description": "Fiscal year"},
                     {"name": "month", "type": "varchar", "description": "Month"},
-                    {"name": "function", "type": "varchar", "description": "Function type"},
-                    {"name": "amount", "type": "numeric", "description": "Cost amount"}
+                    {
+                        "name": "function",
+                        "type": "varchar",
+                        "description": "Function type",
+                    },
+                    {"name": "amount", "type": "numeric", "description": "Cost amount"},
                 ],
                 "primary_key": "id",
-                "row_count": 1584
+                "row_count": 1584,
             }
         }
 
@@ -263,11 +267,10 @@ class DataSourceMetadata(BaseModel):
     port: Optional[int] = Field(default=None, description="Database port")
     database: Optional[str] = Field(default=None, description="Database name")
     schema: Optional[str] = Field(default=None, description="Database schema")
-    tables: List[str] = Field(
-        default_factory=list,
-        description="Available table names"
+    tables: List[str] = Field(default_factory=list, description="Available table names")
+    is_available: bool = Field(
+        default=False, description="Whether data source is available"
     )
-    is_available: bool = Field(default=False, description="Whether data source is available")
 
     class Config:
         json_schema_extra = {
@@ -277,8 +280,12 @@ class DataSourceMetadata(BaseModel):
                 "port": 5432,
                 "database": "cost_allocation",
                 "schema": "public",
-                "tables": ["cost_database", "rate_table", "cc_mapping"],
-                "is_available": True
+                "tables": [
+                    "SSME_FI_InsightBot_CostDataBase",
+                    "SSME_FI_InsightBot_Rate",
+                    "cc_mapping",
+                ],
+                "is_available": True,
             }
         }
 
@@ -301,8 +308,8 @@ class ExecutionContext(BaseModel):
                 "query_id": "query-001",
                 "timestamp": "2024-01-01T12:00:00Z",
                 "data_source_type": "postgresql",
-                "table_names": ["cost_database"],
+                "table_names": ["SSME_FI_InsightBot_CostDataBase"],
                 "query_type": "aggregate",
-                "user_query": "按功能统计成本"
+                "user_query": "按功能统计成本",
             }
         }

@@ -179,7 +179,7 @@ Return ONLY the SQL query, no markdown code blocks, no explanations.
 
 Example:
 SELECT function, SUM(amount) as total_cost
-FROM cost_database
+FROM SSME_FI_InsightBot_CostDataBase
 GROUP BY function
 ORDER BY total_cost DESC
 LIMIT 10

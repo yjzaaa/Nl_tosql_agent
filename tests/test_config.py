@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from config.settings import load_config, get_config, set_config, AppConfig
+from config.settings import load_config, get_config, set_config, AppConfig, ModelConfig, ProviderConfig
 
 
 class TestConfigLoading:
@@ -17,12 +17,17 @@ class TestConfigLoading:
         """Sample configuration content"""
         return {
             "model": {
-                "provider": "openai",
-                "model_name": "gpt-4",
-                "api_key": "test-key",
-                "base_url": "http://localhost:1234/v1",
-                "temperature": 0.1,
-                "max_tokens": 4096
+                "active": "test_provider",
+                "providers": {
+                    "test_provider": {
+                        "provider": "openai",
+                        "model_name": "gpt-4",
+                        "api_key": "test-key",
+                        "base_url": "http://localhost:1234/v1",
+                        "temperature": 0.1,
+                        "max_tokens": 4096
+                    }
+                }
             },
             "excel": {
                 "max_preview_rows": 20,
@@ -56,16 +61,19 @@ class TestConfigLoading:
         config = load_config(temp_config_file)
         
         assert config is not None
-        assert config.model.provider == "openai"
-        assert config.model.model_name == "gpt-4"
+        assert config.model.active == "test_provider"
+        active_provider = config.model.get_active_provider()
+        assert active_provider.provider == "openai"
+        assert active_provider.model_name == "gpt-4"
 
     def test_load_config_defaults(self):
         """Test loading config with defaults when file doesn't exist"""
         config = load_config("/nonexistent/path/config.yaml")
         
         assert config is not None
-        assert config.model.provider == "openai"
-        assert config.model.model_name == "gpt-4"
+        # Default fallback behavior
+        active_provider = config.model.get_active_provider()
+        assert active_provider.provider == "openai" # Default env var fallback
 
     def test_load_config_env_vars(self, monkeypatch):
         """Test loading config with environment variables"""
@@ -74,9 +82,14 @@ class TestConfigLoading:
         
         sample_config = {
             "model": {
-                "provider": "openai",
-                "api_key": "${TEST_API_KEY}",
-                "base_url": "${TEST_BASE_URL}"
+                "active": "env_provider",
+                "providers": {
+                    "env_provider": {
+                        "provider": "openai",
+                        "api_key": "${TEST_API_KEY}",
+                        "base_url": "${TEST_BASE_URL}"
+                    }
+                }
             }
         }
         
@@ -88,8 +101,9 @@ class TestConfigLoading:
         
         config = load_config(str(config_path))
         
-        assert config.model.api_key == "env-key"
-        assert config.model.base_url == "http://env-url"
+        active_provider = config.model.get_active_provider()
+        assert active_provider.api_key == "env-key"
+        assert active_provider.base_url == "http://env-url"
         
         if config_path.exists():
             config_path.unlink()
@@ -114,28 +128,41 @@ class TestConfigLoading:
 class TestAppConfig:
     """Test AppConfig class"""
 
-    def test_app_config_defaults(self):
+    def test_app_config_defaults(self, monkeypatch):
         """Test AppConfig defaults"""
+        # Ensure env vars don't interfere with defaults testing
+        monkeypatch.delenv("LLM_PROVIDER", raising=False)
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        monkeypatch.delenv("LLM_API_KEY", raising=False)
+        monkeypatch.delenv("LLM_BASE_URL", raising=False)
+        monkeypatch.delenv("LLM_TEMPERATURE", raising=False)
+        monkeypatch.delenv("LLM_MAX_TOKENS", raising=False)
+
         config = AppConfig()
         
-        assert config.model.provider == "openai"
-        assert config.model.model_name == "gpt-4"
+        active_provider = config.model.get_active_provider()
+        assert active_provider.provider == "openai"
+        assert active_provider.model_name == "gpt-4"
         assert config.excel.max_preview_rows == 5
         assert config.data_source.type == "excel"
 
     def test_model_config(self):
         """Test ModelConfig"""
-        from config.settings import ModelConfig
-        
-        config = ModelConfig(
+        provider_config = ProviderConfig(
             provider="test",
             model_name="test-model",
             api_key="test-key"
         )
         
-        assert config.provider == "test"
-        assert config.model_name == "test-model"
-        assert config.api_key == "test-key"
+        config = ModelConfig(
+            active="test",
+            providers={"test": provider_config}
+        )
+        
+        active = config.get_active_provider()
+        assert active.provider == "test"
+        assert active.model_name == "test-model"
+        assert active.api_key == "test-key"
 
     def test_excel_config(self):
         """Test ExcelConfig"""
@@ -182,14 +209,18 @@ class TestConfigValidation:
 
     def test_nested_config_validation(self):
         """Test nested config validation"""
-        from config.settings import ModelConfig
-        
-        model_config = ModelConfig(
+        provider_config = ProviderConfig(
             provider="openai",
             model_name="gpt-4",
             temperature=0.5,  # Valid float
             max_tokens=2048   # Valid int
         )
         
-        assert model_config.temperature == 0.5
-        assert model_config.max_tokens == 2048
+        model_config = ModelConfig(
+            active="default",
+            providers={"default": provider_config}
+        )
+        
+        active = model_config.get_active_provider()
+        assert active.temperature == 0.5
+        assert active.max_tokens == 2048

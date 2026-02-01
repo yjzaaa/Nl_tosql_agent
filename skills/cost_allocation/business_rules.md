@@ -3,12 +3,12 @@ rules:
   - id: allocation_calculation
     description: "分摊计算公式"
     rule: |
-      分摊金额 = ABS(Cost_Amount) * RateNo
+      分摊金额 = ABS(cost_amount) * rate_no
       其中：
-      1. Cost_Amount 来自 CostDataBase 表，通常 Allocation 类型的成本为负数，需取绝对值。
-      2. RateNo 来自 Rate 表，为小数形式。
-      3. 单一 CC 场景：直接使用该 CC 的 RateNo。
-      4. 业务线 (BL) 场景：SUM(该 BL 下所有 CC 的 RateNo)。
+      1. cost_amount 来自 cost_database 表，通常 Allocation 类型的成本为负数，需取绝对值。
+      2. rate_no 来自 rate_table 表，为小数形式。
+      3. 单一 CC 场景：直接使用该 CC 的 rate_no。
+      4. 业务线 (BL) 场景：SUM(该 BL 下所有 CC 的 rate_no)。
 
   - id: function_key_mapping
     description: "Function 与 Key 的对应关系"
@@ -40,17 +40,17 @@ rules:
 # 业务规则详情
 
 ## 1. 分摊计算逻辑
-当计算分摊费用时，必须关联 `CostDataBase` 和 `Rate` 表。
+当计算分摊费用时，必须关联 `cost_database` 和 `rate_table` 表。
 SQL 逻辑：
 ```sql
 SELECT 
-    ABS(c.Amount) * r.RateNo as AllocatedAmount
-FROM SSME_FI_InsightBot_CostDataBase c
-JOIN SSME_FI_InsightBot_Rate r 
-    ON c.Year = r.Year 
-    AND c.Scenario = r.Scenario 
-    AND c.Month = r.Month 
-    AND c.Key = r.Key
+    ABS(c.amount) * r.rate_no as AllocatedAmount
+FROM cost_database c
+JOIN rate_table r 
+    ON c.year = r.year 
+    AND c.scenario = r.scenario 
+    AND c.month = r.month 
+    AND c.key = r.key
 WHERE ...
 ```
 
@@ -59,5 +59,5 @@ WHERE ...
 建议方式：
 ```sql
 -- 获取某 BL 在某 Key 下的总 Rate
-SELECT SUM(RateNo) FROM SSME_FI_InsightBot_Rate WHERE BL = 'TargetBL' ...
+SELECT SUM(rate_no) FROM rate_table WHERE bl = 'TargetBL' ...
 ```

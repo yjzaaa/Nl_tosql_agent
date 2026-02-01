@@ -43,8 +43,8 @@ data_source_strategy: auto
 
 # 默认表名映射
 table_names:
-  cost_database: cost_database
-  rate_table: rate_table
+  cost_database: SSME_FI_InsightBot_CostDataBase
+  rate_table: SSME_FI_InsightBot_Rate
   cc_mapping: cc_mapping
   cost_text_mapping: cost_text_mapping
 

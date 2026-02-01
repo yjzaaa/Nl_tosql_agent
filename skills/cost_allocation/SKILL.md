@@ -27,15 +27,15 @@ skill.execute_script(
         "--years", "FY25",
         "--scenarios", "Actual",
         "--function", "IT Allocation",
-        "--party_field", "t7.[BL]",
+        "--party_field", "r.bl",
         "--party_value", "'CT'"
     ]
 )
 ```
 
 **Parameters:**
-- `years`: List of fiscal years (e.g. FY24 FY25)
-- `scenarios`: List of scenarios (e.g. Actual Budget)
-- `function`: Function name to filter
-- `party_field`: Field to group by (e.g. t7.[BL] or t7.[CC])
-- `party_value`: Value to filter the party field
+- `years`: List of fiscal years (Must exist in database, e.g. FY24 FY25)
+- `scenarios`: List of scenarios (Must match database values exactly, e.g. 'Actual', 'Budget1')
+- `function`: Function name to filter (Must match database values exactly)
+- `party_field`: Field to group by (e.g. r.bl or r.cc)
+- `party_value`: Value to filter the party field (Must match database values exactly)

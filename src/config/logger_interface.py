@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from abc import ABC, abstractmethod
 
 import colorama
+
 colorama.init(autoreset=True)
 
 from rich.console import Console
@@ -21,8 +22,12 @@ from rich import print as rprint
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from langchain_core.messages import (
-    HumanMessage, AIMessage, SystemMessage,
-    ToolMessage, FunctionMessage, ChatMessage
+    HumanMessage,
+    AIMessage,
+    SystemMessage,
+    ToolMessage,
+    FunctionMessage,
+    ChatMessage,
 )
 
 
@@ -45,18 +50,22 @@ class LoggerManager:
 
     def _setup_console(self):
         """初始化 Rich 控制台"""
-        CUSTOM_THEME = Theme({
-            "info": "dim cyan",
-            "warning": "italic yellow",
-            "error": "bold red",
-            "success": "bold green",
-            "debug": "dim blue",
-            "user": "cyan",
-            "ai": "green",
-            "system": "yellow",
-            "tool": "magenta",
-        })
-        self.console = Console(force_terminal=True, color_system="auto", theme=CUSTOM_THEME)
+        CUSTOM_THEME = Theme(
+            {
+                "info": "dim cyan",
+                "warning": "italic yellow",
+                "error": "bold red",
+                "success": "bold green",
+                "debug": "dim blue",
+                "user": "cyan",
+                "ai": "green",
+                "system": "yellow",
+                "tool": "magenta",
+            }
+        )
+        self.console = Console(
+            force_terminal=True, color_system="auto", theme=CUSTOM_THEME
+        )
 
     def _setup_color_maps(self):
         """配置颜色映射"""
@@ -106,7 +115,9 @@ class LoggerManager:
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
-        file_handler = logging.FileHandler("excel_agent.log", mode="w", encoding="utf-8")
+        file_handler = logging.FileHandler(
+            "excel_agent.log", mode="w", encoding="utf-8"
+        )
         file_handler.setLevel(level)
         file_handler.setFormatter(file_formatter)
 
@@ -150,14 +161,16 @@ class LoggerManager:
 
     def _strip_ansi(self, text: str) -> str:
         """移除 ANSI 转义码"""
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        return ansi_escape.sub('', text)
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
 
-    def format_message_content(self, msg, max_lines: int = 15, max_chars: int = 1000) -> str:
+    def format_message_content(
+        self, msg, max_lines: int = 15, max_chars: int = 1000
+    ) -> str:
         """格式化消息内容"""
         content = ""
 
-        if hasattr(msg, 'content'):
+        if hasattr(msg, "content"):
             raw = msg.content
             if isinstance(raw, str):
                 content = raw
@@ -165,15 +178,15 @@ class LoggerManager:
                 parts = []
                 for item in raw[:10]:
                     if isinstance(item, dict):
-                        if item.get('type') == 'text':
-                            parts.append(item.get('text', ''))
-                        elif item.get('type') == 'tool_use':
+                        if item.get("type") == "text":
+                            parts.append(item.get("text", ""))
+                        elif item.get("type") == "tool_use":
                             parts.append(f"[Tool Call: {item.get('name', 'unknown')}]")
-                            if 'input' in item:
-                                parts.append(str(item['input'])[:1000])
+                            if "input" in item:
+                                parts.append(str(item["input"])[:1000])
                     else:
                         parts.append(str(item))
-                content = '\n'.join(parts)
+                content = "\n".join(parts)
             else:
                 content = str(raw)
         else:
@@ -182,9 +195,9 @@ class LoggerManager:
         if len(content) > max_chars:
             content = content[:max_chars] + "\n... (truncated)"
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         if len(lines) > max_lines:
-            content = '\n'.join(lines[:max_lines]) + "\n... (truncated)"
+            content = "\n".join(lines[:max_lines]) + "\n... (truncated)"
 
         return content
 
@@ -213,9 +226,17 @@ class LoggerManager:
         msg = "\n" + content + "\n"
         print(msg)
 
-    def _make_rich_panel(self, title: str, content: str, border_style: str = "blue", width: int = 80, title_style: str = "bold", content_style: str = "") -> Panel:
+    def _make_rich_panel(
+        self,
+        title: str,
+        content: str,
+        border_style: str = "blue",
+        width: int = 80,
+        title_style: str = "bold",
+        content_style: str = "",
+    ) -> Panel:
         """创建 Rich 面板（带颜色）
-        
+
         Args:
             title: 面板标题（边框上显示）
             content: 面板内容
@@ -225,15 +246,20 @@ class LoggerManager:
             content_style: 内容样式（可指定颜色，如 "cyan", "green yellow" 等）
         """
         styled_title = Text(title, style=f"{title_style} {border_style}")
-        
+
         if content_style:
             if content_style.startswith("code") or content_style.startswith("json"):
-                styled_content = Syntax(content, content_style.split(":")[0] if ":" in content_style else "python", theme="monokai", word_wrap=True)
+                styled_content = Syntax(
+                    content,
+                    content_style.split(":")[0] if ":" in content_style else "python",
+                    theme="monokai",
+                    word_wrap=True,
+                )
             else:
                 styled_content = Text(content, style=content_style)
         else:
             styled_content = Text(content)
-            
+
         return Panel(
             styled_content,
             title=styled_title,
@@ -242,9 +268,11 @@ class LoggerManager:
             expand=False,
         )
 
-    def _make_type_panel(self, msg_type: str, content: str, border_style: str = "blue", width: int = 80) -> Panel:
+    def _make_type_panel(
+        self, msg_type: str, content: str, border_style: str = "blue", width: int = 80
+    ) -> Panel:
         """创建带消息类型的面板
-        
+
         Args:
             msg_type: 消息类型（如 USER, ASSISTANT, SYSTEM 等）
             content: 面板内容
@@ -254,7 +282,7 @@ class LoggerManager:
         type_label = f"[{msg_type}]"
         styled_title = Text(type_label, style=f"bold {border_style}")
         styled_content = Text(content, style=border_style)
-        
+
         return Panel(
             styled_content,
             title=styled_title,
@@ -270,93 +298,127 @@ class LoggerManager:
         if len(title_line) < width - 1:
             title_line += " " * (width - 1 - len(title_line)) + "="
         else:
-            title_line = "=" + title_line[:width-2] + "="
+            title_line = "=" + title_line[: width - 2] + "="
 
-        content_lines = content.split('\n')
+        content_lines = content.split("\n")
         max_content_width = width - 4
 
         formatted_lines = [title_line]
         for line in content_lines:
             if len(line) > max_content_width:
-                line = line[:max_content_width - 3] + "..."
+                line = line[: max_content_width - 3] + "..."
             formatted_lines.append(f"| {line:<{max_content_width}} |")
         formatted_lines.append(f"|{border}|")
 
-        return '\n'.join(formatted_lines)
+        return "\n".join(formatted_lines)
 
-    def log_message_block(self, prefix: str, title: str, content: str, color: str = "blue") -> None:
+    def log_message_block(
+        self, prefix: str, title: str, content: str, color: str = "blue"
+    ) -> None:
         """日志消息块 - 自动应用颜色"""
         full_title = f"{prefix} {title}"
-        panel = self._make_rich_panel(full_title, content, border_style=color, title_style="bold", content_style=color)
+        panel = self._make_rich_panel(
+            full_title,
+            content,
+            border_style=color,
+            title_style="bold",
+            content_style=color,
+        )
         self.console.print(panel)
 
-    def log_step(self, step_num: int, step_name: str, status: str, details: str = "") -> None:
+    def log_step(
+        self, step_num: int, step_name: str, status: str, details: str = ""
+    ) -> None:
         """日志步骤信息 - 自动应用颜色"""
         status_info = self.STATUS_COLORS.get(status, ("[?]", "white"))
         status_text = status_info[0]
         style = self.RICH_STATUS_STYLES.get(status, "white")
-        
+
         lines = [
             f"Step {step_num}: {step_name}",
             f"Status: {status_text}",
         ]
-        
+
         if details:
-            detail_lines = details.split('\n')[:8]
+            detail_lines = details.split("\n")[:8]
             for line in detail_lines:
                 indented = "    " + line
                 if len(indented) > 76:
                     indented = indented[:73] + "..."
                 lines.append(indented)
-            if len(details.split('\n')) > 8:
+            if len(details.split("\n")) > 8:
                 lines.append("    ... (truncated)")
-        
-        content = '\n'.join(lines)
-        panel = self._make_rich_panel(step_name, content, border_style=style, title_style="bold", content_style=style)
+
+        content = "\n".join(lines)
+        panel = self._make_rich_panel(
+            step_name,
+            content,
+            border_style=style,
+            title_style="bold",
+            content_style=style,
+        )
         self.console.print(panel)
 
     def log_message_with_type(self, msg) -> None:
         """根据消息类型自动应用颜色并打印消息 - 边框显示消息类型"""
         msg_type = self.get_message_type_name(msg)
         style = self.RICH_MESSAGE_STYLES.get(msg_type, "gray")
-        
+
         content = self.format_message_content(msg, max_lines=20, max_chars=1000)
-        
+
         panel = self._make_type_panel(msg_type, content, border_style=style)
         self.console.print(panel)
 
-    def log_workflow_step(self, step_name: str, description: str, status: str, extra_info: str = "") -> None:
+    def log_workflow_step(
+        self, step_name: str, description: str, status: str, extra_info: str = ""
+    ) -> None:
         """通用工作流步骤日志输出 - 自动应用颜色"""
         status_info = self.STATUS_COLORS.get(status, ("[?]", "blue"))
         status_text = status_info[0]
         style = self.RICH_STATUS_STYLES.get(status, "blue")
-        
+
         lines = [
             f"Step: {step_name}",
             f"Status: {status_text}",
             f"Description: {description}",
         ]
-        
+
         if extra_info:
             lines.append(f"\n{extra_info}")
-        
-        content = '\n'.join(lines)
-        panel = self._make_rich_panel(step_name, content, border_style=style, title_style="bold", content_style=style)
+
+        content = "\n".join(lines)
+        panel = self._make_rich_panel(
+            step_name,
+            content,
+            border_style=style,
+            title_style="bold",
+            content_style=style,
+        )
         self.console.print(panel)
 
-    def log_sql_query(self, sql: str, status: str = "success", result_info: str = "") -> None:
+    def log_sql_query(
+        self, sql: str, status: str = "success", result_info: str = ""
+    ) -> None:
         """SQL 查询日志输出 - 自动应用颜色"""
         status_text = "[SUCCESS]" if status == "success" else "[ERROR]"
         style = "green" if status == "success" else "red"
-        
+
         content = f"SQL Query {status_text}\n\n{sql}"
         if result_info:
             content += f"\n\n{result_info}"
-        
-        panel = self._make_rich_panel("SQL Query", content, border_style=style, title_style="bold", content_style="code:python")
+
+        panel = self._make_rich_panel(
+            "SQL Query",
+            content,
+            border_style=style,
+            title_style="bold",
+            content_style="code:python",
+        )
         self.console.print(panel)
 
-    def log_result_table(self, title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10) -> None:
+    def log_result_table(
+        self, title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10
+    ) -> None:
         """结果表格日志输出 - 自动应用 Rich 表格颜色"""
         from rich.table import Table
 
@@ -382,9 +444,12 @@ class LoggerManager:
         """打印带颜色的文本"""
         rprint(f"[{style}]{text}[/{style}]")
 
-    def print_table(self, data: list, headers: list = None, title: str = None, style: str = "info") -> None:
+    def print_table(
+        self, data: list, headers: list = None, title: str = None, style: str = "info"
+    ) -> None:
         """打印带颜色的表格"""
         from rich.table import Table
+
         table = Table(title=title, style=style)
         if headers:
             for h in headers:
@@ -392,104 +457,6 @@ class LoggerManager:
         for row in data:
             table.add_row(*[str(c) for c in row])
         self.console.print(table)
-
-
-class RichConsoleCallbackHandler(AsyncCallbackHandler):
-    """Rich 风格的异步回调处理器，用于可视化打印 Agent 运行细节"""
-
-    def __init__(self, manager: LoggerManager = None):
-        self.manager = manager or LoggerManager()
-        self.console = self.manager.console
-
-    async def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
-    ) -> None:
-        """LLM 开始运行时调用"""
-        model_name = "Unknown Model"
-        if "name" in serialized:
-            model_name = serialized["name"]
-
-        self.console.print(
-            Panel(
-                Text(f"LLM Thinking ({model_name})...", style="cyan bold"),
-                border_style="cyan",
-            )
-        )
-
-    async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
-        """LLM 结束时调用"""
-        if response.llm_output and "token_usage" in response.llm_output:
-            usage = response.llm_output["token_usage"]
-            self.console.print(f"[dim]Tokens: {usage}[/dim]")
-
-    async def on_tool_start(
-        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
-    ) -> None:
-        """工具开始调用时调用"""
-        tool_name = serialized.get("name", "Unknown Tool")
-
-        tree = Tree(f"Calling Tool: [bold yellow]{tool_name}[/bold yellow]")
-
-        try:
-            input_json = json.loads(input_str)
-            formatted_json = json.dumps(input_json, indent=2, ensure_ascii=False)
-            tree.add(Syntax(formatted_json, "json", theme="monokai", word_wrap=True))
-        except:
-            tree.add(Text(input_str, style="yellow"))
-
-        self.console.print(tree)
-
-    async def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        """工具结束时调用"""
-        max_length = 500
-        display_output = str(output)
-        if len(display_output) > max_length:
-            display_output = (
-                display_output[:max_length]
-                + f"... (truncated, total {len(display_output)} chars)"
-            )
-
-        self.console.print(
-            Panel(
-                Text(display_output, style="green"),
-                title="Tool Output",
-                border_style="green",
-                expand=False,
-            )
-        )
-
-    async def on_tool_error(
-        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
-    ) -> None:
-        """工具出错时调用"""
-        self.console.print(
-            Panel(
-                Text(str(error), style="bold red"),
-                title="Tool Error",
-                border_style="red",
-            )
-        )
-
-    async def on_agent_action(self, action: Any, **kwargs: Any) -> Any:
-        """Agent 决定采取行动时调用"""
-        pass
-
-    async def on_agent_finish(self, finish: Any, **kwargs: Any) -> Any:
-        """Agent 完成任务时调用"""
-        output = finish.return_values.get("output", "")
-        self.console.print(
-            Panel(
-                Text(output, style="bold white"),
-                title="Final Answer",
-                border_style="white",
-            )
-        )
-
-    async def on_chain_error(
-        self, error: Union[Exception, KeyboardInterrupt], **kwargs: Any
-    ) -> None:
-        """链执行出错时调用"""
-        pass
 
 
 _logger_manager = LoggerManager()
@@ -520,7 +487,9 @@ def log_step(step_num: int, step_name: str, status: str, details: str = "") -> N
     return _logger_manager.log_step(step_num, step_name, status, details)
 
 
-def log_workflow_step(step_name: str, description: str, status: str, extra_info: str = "") -> None:
+def log_workflow_step(
+    step_name: str, description: str, status: str, extra_info: str = ""
+) -> None:
     """通用工作流步骤日志输出"""
     return _logger_manager.log_workflow_step(step_name, description, status, extra_info)
 
@@ -530,12 +499,16 @@ def log_sql_query(sql: str, status: str = "success", result_info: str = "") -> N
     return _logger_manager.log_sql_query(sql, status, result_info)
 
 
-def log_result_table(title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10) -> None:
+def log_result_table(
+    title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10
+) -> None:
     """结果表格日志输出"""
     return _logger_manager.log_result_table(title, headers, rows, max_rows)
 
 
-def log_message_block(prefix: str, title: str, content: str, color: str = "blue") -> None:
+def log_message_block(
+    prefix: str, title: str, content: str, color: str = "blue"
+) -> None:
     """日志消息块"""
     return _logger_manager.log_message_block(prefix, title, content, color)
 
@@ -550,7 +523,9 @@ def print_color(text: str, style: str = "info") -> None:
     return _logger_manager.print_color(text, style)
 
 
-def print_table(data: list, headers: list = None, title: str = None, style: str = "info") -> None:
+def print_table(
+    data: list, headers: list = None, title: str = None, style: str = "info"
+) -> None:
     """打印带颜色的表格"""
     return _logger_manager.print_table(data, headers, title, style)
 

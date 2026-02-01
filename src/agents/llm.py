@@ -16,13 +16,14 @@ class OpenAILLMProvider(ILLMProvider):
 
     def __init__(self, model_name: str = None, api_key: str = None,
                  base_url: str = None, temperature: float = 0.1, max_tokens: int = 4096,
-                 callbacks: list = None):
+                 callbacks: list = None, model_kwargs: dict = None):
         self._model_name = model_name
         self._api_key = api_key
         self._base_url = base_url
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._callbacks = callbacks or []
+        self._model_kwargs = model_kwargs or {}
         self._llm = None
         self._initialize_llm()
 
@@ -36,6 +37,7 @@ class OpenAILLMProvider(ILLMProvider):
                 temperature=self._temperature,
                 max_tokens=self._max_tokens,
                 callbacks=self._callbacks,
+                model_kwargs=self._model_kwargs,
             )
 
     def generate(self, prompt: str, **kwargs) -> str:
@@ -134,6 +136,7 @@ def get_llm(callbacks: list = None) -> ChatOpenAI:
         temperature=provider.temperature,
         max_tokens=provider.max_tokens,
         callbacks=all_callbacks if all_callbacks else None,
+        model_kwargs=provider.model_kwargs,
     )
 
 
@@ -148,4 +151,5 @@ def create_llm_provider() -> ILLMProvider:
         base_url=provider.base_url,
         temperature=provider.temperature,
         max_tokens=provider.max_tokens,
+        model_kwargs=provider.model_kwargs,
     )

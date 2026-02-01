@@ -3,7 +3,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import yaml
 from pydantic import BaseModel, Field
@@ -21,38 +21,85 @@ class ProviderConfig(BaseModel):
     base_url: Optional[str] = None
     temperature: float = 0.1
     max_tokens: int = 4096
+    stream: bool = False
+    description: Optional[str] = None
+    model_kwargs: Dict[str, Any] = Field(default_factory=dict)  # 支持额外的模型参数
 
 
 class ModelConfig(BaseModel):
     """模型配置"""
 
-    provider: str = Field(
-        default_factory=lambda: os.environ.get("LLM_PROVIDER", "openai")
-    )
-    model_name: str = Field(
-        default_factory=lambda: os.environ.get("LLM_MODEL", "gpt-4")
-    )
-    api_key: str = Field(default_factory=lambda: os.environ.get("LLM_API_KEY", ""))
-    base_url: Optional[str] = Field(
-        default_factory=lambda: os.environ.get("LLM_BASE_URL")
-    )
-    temperature: float = Field(
-        default_factory=lambda: float(os.environ.get("LLM_TEMPERATURE", "0.1"))
-    )
-    max_tokens: int = Field(
-        default_factory=lambda: int(os.environ.get("LLM_MAX_TOKENS", "4096"))
-    )
+    active: str = "ollama"
+    providers: Dict[str, ProviderConfig] = Field(default_factory=dict)
+
+    # Legacy fields for backward compatibility (optional)
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
 
     def get_active_provider(self) -> ProviderConfig:
-        """获取当前激活的提供商配置 (简化版，始终返回自身配置)"""
+        """获取当前激活的提供商配置"""
+        if self.active and self.active in self.providers:
+            return self.providers[self.active]
+
+        # Fallback to legacy behavior if providers dict is empty but legacy fields exist
+        if not self.providers and self.provider:
+            return ProviderConfig(
+                provider=self.provider,
+                model_name=self.model_name or "gpt-4",
+                api_key=self.api_key or "",
+                base_url=self.base_url,
+                temperature=self.temperature or 0.1,
+                max_tokens=self.max_tokens or 4096,
+            )
+
+        # Fallback to env vars if absolutely nothing is configured (shouldn't happen with valid config.yaml)
+        # Or construct a default one
         return ProviderConfig(
-            provider=self.provider,
-            model_name=self.model_name,
-            api_key=self.api_key,
-            base_url=self.base_url,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
+            provider=os.environ.get("LLM_PROVIDER", "openai"),
+            model_name=os.environ.get("LLM_MODEL", "gpt-4"),
+            api_key=os.environ.get("LLM_API_KEY", ""),
+            base_url=os.environ.get("LLM_BASE_URL"),
+            temperature=float(os.environ.get("LLM_TEMPERATURE", "0.1")),
+            max_tokens=int(os.environ.get("LLM_MAX_TOKENS", "4096")),
         )
+
+
+class ServerConfig(BaseModel):
+    """Server Config"""
+
+    host: str = "0.0.0.0"
+    port: int = 8000
+
+
+class EmbeddingProviderConfig(BaseModel):
+    """Embedding Provider Config"""
+
+    model: str
+    dims: int
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    description: Optional[str] = None
+
+
+class EmbeddingConfig(BaseModel):
+    """Embedding Config"""
+
+    active: str = "ollama"
+    providers: Dict[str, EmbeddingProviderConfig] = Field(default_factory=dict)
+
+
+class KnowledgeBaseConfig(BaseModel):
+    """Knowledge Base Config"""
+
+    enabled: bool = True
+    knowledge_dir: str = "knowledge"
+    vector_db_path: str = ".vector_db"
+    top_k: int = 3
+    similarity_threshold: float = 0.3
 
 
 class ExcelConfig(BaseModel):
@@ -103,6 +150,9 @@ class AppConfig(BaseModel):
     """应用配置"""
 
     model: ModelConfig = Field(default_factory=ModelConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    knowledge_base: KnowledgeBaseConfig = Field(default_factory=KnowledgeBaseConfig)
     excel: ExcelConfig = Field(default_factory=ExcelConfig)
     data_source: DataSourceConfig = Field(default_factory=DataSourceConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)

@@ -147,8 +147,8 @@ class PostgreSQLDataSource(DataSourceStrategy):
             "schema": self.schema,
             "user": self.user,
             "tables": [
-                "cost_database",
-                "rate_table",
+                "SSME_FI_InsightBot_CostDataBase",
+                "SSME_FI_InsightBot_Rate",
                 "cc_mapping",
                 "cost_text_mapping",
             ],

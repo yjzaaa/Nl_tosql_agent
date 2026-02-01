@@ -44,18 +44,29 @@ class DataSourceContextProvider:
         self._ensure_initialized()
         return self._manager.detect_sources(table_names)
 
-    def get_data_source_context(self, table_names: Optional[List[str]] = None) -> str:
+    def get_data_source_context(self, table_names: Optional[List[str]] = None, skill: Optional[Any] = None) -> str:
         """获取数据源上下文
 
         Args:
             table_names: 表名列表（SQL模式需要）
+            skill: 业务技能对象 (可选)
 
         Returns:
             上下文字符串
         """
         self._ensure_initialized()
 
-        # If manager has a strategy set, use it to get context
+        context_str = ""
+
+        # 1. 优先从 Skill 获取业务规则
+        if skill:
+            from src.core.metadata import get_business_logic_context
+            business_logic = get_business_logic_context(skill)
+            if business_logic:
+                context_str += "## Business Logic & Rules\n"
+                context_str += business_logic + "\n\n"
+
+        # 2. 获取数据库 Schema
         if self._manager.get_strategy():
             context = self._manager.get_context()
             available_tables = []
@@ -65,19 +76,22 @@ class DataSourceContextProvider:
             target_tables = table_names if table_names else available_tables
 
             if not target_tables:
-                return "No active tables loaded in data source."
+                context_str += "No active tables loaded in data source."
+                return context_str
 
             try:
                 # Return detailed schema info
-                return self._manager.get_schema_info(target_tables)
+                context_str += "## Database Schema\n"
+                context_str += self._manager.get_schema_info(target_tables)
+                return context_str
             except Exception as e:
-                return f"Error getting schema info: {str(e)}"
+                return context_str + f"Error getting schema info: {str(e)}"
 
-        # Fallback to Excel Loader (Legacy/Default behavior)
+        # 3. Fallback to Excel Loader
         loaded_tables = self._loader.list_tables()
 
         if not loaded_tables:
-            return "No active tables loaded."
+            return context_str + "No active tables loaded."
 
         lines = ["## Available Tables\n\n"]
 
@@ -119,8 +133,8 @@ class DataSourceContextProvider:
             lines.append("FROM TableA a\n")
             lines.append("JOIN TableB b ON a.Key = b.Key\n")
             lines.append("```\n")
-
-        return "".join(lines)
+        
+        return context_str + "".join(lines)
 
     def get_sql_rules(self) -> str:
         """获取SQL规则 - 根据数据源类型返回对应规则"""

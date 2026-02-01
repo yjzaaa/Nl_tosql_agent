@@ -27,8 +27,8 @@ WITH monthly_alloc AS (
         COALESCE(SUM(CAST(cdb.amount AS FLOAT) * COALESCE(t7.rate_no, 0)), 0) AS "Allocated_Month_Cost",
             
         {party_field} AS "Allocated_Party"
-    FROM cost_database cdb
-    LEFT JOIN rate_table t7
+    FROM SSME_FI_InsightBot_CostDataBase cdb
+    LEFT JOIN SSME_FI_InsightBot_Rate t7
         ON cdb.year = t7.year
         AND cdb.scenario = t7.scenario
         AND cdb.key = t7.key

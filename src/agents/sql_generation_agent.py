@@ -25,9 +25,7 @@ CORE_TOOLS = [
 ]
 
 from src.agents.llm import get_llm
-from src.prompts.manager import SQL_GENERATION_PROMPT, render_prompt_template
-from src.skills.retrieval import lookup_business_logic
-from src.config.logger import LoggerManager
+from src.config.logger_interface import get_logger_manager
 
 if TYPE_CHECKING:
     from workflow.graph import AgentState
@@ -35,15 +33,17 @@ if TYPE_CHECKING:
 
 def generate_sql_node(state: "AgentState") -> "AgentState":
     """SQL 生成节点 - 通过 DataSourceContextProvider 获取数据源上下文，并支持动态加载业务逻辑技能"""
-    LoggerManager().info("Starting generate_sql_node")
+    logger = get_logger_manager()
+    logger.info("Starting generate_sql_node")
 
     try:
         skill = state.get("skill")
         context_provider = get_data_source_context_provider()
 
         data_source_context = context_provider.get_data_source_context(
-            state.get("table_names", [])
+            state.get("table_names", []), skill=skill
         )
+        logger.info(f"Loaded Data Source Context:\n{data_source_context}")
         user_query = state.get("user_query", "")
         intent_analysis = state.get("intent_analysis", "")
 
@@ -88,10 +88,10 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
         sql = ""
 
         for i in range(MAX_ITERATIONS):
-            LoggerManager().info(f"Generate SQL Iteration {i+1}")
+            logger.info(f"Generate SQL Iteration {i+1}")
             response = llm_with_tools.invoke(messages)
             messages.append(response)
-            LoggerManager().info(
+            logger.info(
                 f"LLM Response: {response.content}, Tool Calls: {response.tool_calls}"
             )
 
@@ -100,7 +100,7 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
                 sql = (
                     response.content.replace("```python", "").replace("```", "").strip()
                 )
-                LoggerManager().info(f"Generated SQL: {sql}")
+                logger.info(f"Generated SQL: {sql}")
                 break
 
             # 处理工具调用
@@ -152,14 +152,14 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
                     .replace("```", "")
                     .strip()
                 )
-                LoggerManager().info(
-                    f"Max iterations reached. Using last content as SQL: {sql}"
-                )
+                logger.info(f"Max iterations reached. Using last content as SQL: {sql}")
 
         state["sql_query"] = sql
         state["retry_count"] = state.get("retry_count", 0) + 1
         return state
 
     except Exception as e:
+        logger.error(f"generate_sql_node error: {str(e)}")
         state["error_message"] = f"generate_sql节点执行错误。错误详情：{str(e)}"
+        state["retry_count"] = state.get("retry_count", 0) + 1
         return state

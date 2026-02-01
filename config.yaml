@@ -1,0 +1,98 @@
+
+# Application Configuration
+
+# LLM Configuration (Multi-provider support)
+model:
+  active: "zhipuai"  # Change this to switch providers: siliconflow, GLM-4.7, openrouter, ollama, zhipuai
+  providers:
+    siliconflow:
+      provider: openai
+      model_name: deepseek-ai/DeepSeek-OCR
+      api_key: ${SILICONFLOW_API_KEY}
+      base_url: https://api.siliconflow.cn/v1
+      temperature: 0.1
+      max_tokens: 1024
+      description: 硅基流动 Qwen2.5
+    GLM-4.7:
+      provider: openai
+      model_name: ${SILICONFLOW_MODEL}
+      api_key: ${SILICONFLOW_API_KEY}
+      base_url: ${SILICONFLOW_BASE_URL}
+      temperature: 0.1
+      max_tokens: 4096
+      description: 硅基流动 DeepSeek
+    openrouter:
+      provider: openai
+      model_name: allenai/molmo-2-8b:free
+      api_key: ${OPENROUTER_API_KEY}
+      base_url: https://openrouter.ai/api/v1
+      temperature: 0.1
+      max_tokens: 4096
+      description: 开放路由 Molmo-2-8b
+    ollama:
+      provider: "ollama"
+      model_name: "qwen2.5-1.5b-instruct" # Adjusted to match local available model
+      api_key: "lm-studio" # Adjusted for LM Studio compatibility
+      base_url: "http://localhost:1234/v1"
+      temperature: 0.7
+      max_tokens: 4096
+      stream: false
+      description: 本地 Ollama/LM Studio
+    zhipuai:
+      provider: zhipuai
+      model_name: glm-4.7
+      api_key: ${ZHIPUAI_API_KEY}
+      base_url: "https://open.bigmodel.cn/api/paas/v4/"
+      temperature: 1.0
+      max_tokens: 65536
+      description: 智谱 AI GLM-4.7
+      model_kwargs:
+        extra_body:
+          thinking:
+            type: "enabled"
+
+# Server Configuration
+server:
+  host: 0.0.0.0
+  port: 8000
+
+# Embedding Configuration
+embedding:
+  active: "ollama"
+  providers:
+    ollama:
+      model: "text-embedding-nomic-embed-text-v1.5"
+      dims: 768
+      api_url: "http://localhost:1234/v1"
+      api_key: "ollama"
+      description: "Local Ollama Embedding"
+
+# Knowledge Base Configuration
+knowledge_base:
+  enabled: true
+  knowledge_dir: "knowledge"
+  vector_db_path: ".vector_db"
+  top_k: 3
+  similarity_threshold: 0.3
+
+# Excel Configuration
+excel:
+  max_preview_rows: 5
+  default_result_limit: 20
+  max_result_limit: 1000
+
+# Data Source Configuration
+data_source:
+  type: "auto"  # auto, excel, sql_server, postgresql
+  config:
+    # SQL Server specific
+    driver: "ODBC Driver 17 for SQL Server"
+    server: "localhost"
+    database: "ExcelMind"
+    trusted_connection: "yes"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format_max_lines: 20
+  format_max_chars: 2000
