@@ -1,53 +1,46 @@
 ---
 name: "git-automator"
-description: "Automates Git workflows including init, commit, and push. Invoke when user wants to submit code, sync changes, or manage git repositories."
+description: "Automates Git workflows. ONLY performs commit/push when explicitly requested by the user. Default behavior is to check status only."
 ---
 
 # Git Automator Skill
 
-This skill automates standard Git workflows to ensure consistent and safe code submission.
+This skill handles Git operations with a focus on safety and user control. It ensures that code is only submitted (committed/pushed) when the user explicitly intends to do so.
 
-## Capabilities
+## Core Rules
 
-1.  **Smart Initialization**: Checks if a repo exists; if not, initializes it.
-2.  **Remote Management**: Handles adding or updating remote origins.
-3.  **Safe Commits**: Checks status, stages files, and commits with descriptive messages.
-4.  **Push Automation**: Pushes to the correct branch, handling upstream setting.
+1.  **No Auto-Commit**: Never automatically commit changes after editing files unless the user *explicitly* asks to "submit", "commit", or "save to git".
+2.  **Check Status First**: Always run `git status` to visualize pending changes before taking action.
+3.  **Explicit Push**: Do not push to remote unless the user asks to "push", "upload", "sync", or "submit to remote".
 
 ## Usage Instructions
 
-When the user asks to "submit code", "push changes", or "setup git":
+### Scenario 1: User asks to "Check Git" or "What changed?"
+1.  Run `git status`.
+2.  Summarize the changed files.
+3.  **STOP**. Do not add or commit.
 
-1.  **Check Status**: Always run `git status` first to understand the current state.
-2.  **Initialize (if needed)**:
-    -   If not a git repo, run `git init`.
-    -   If remote is provided, run `git remote add origin <url>`.
-3.  **Stage & Commit**:
-    -   Use `git add .` (or specific files if requested).
-    -   Use `git commit -m "<message>"`. If no message provided, generate a concise one based on changes.
-4.  **Push**:
-    -   Use `git push -u origin main` (or appropriate branch).
-    -   Handle errors like "remote origin already exists" or "upstream not set" gracefully.
+### Scenario 2: User asks to "Commit" or "Save changes"
+1.  Run `git status` to confirm what will be added.
+2.  Run `git add <files>` (use `.` for all, or specific paths if requested).
+3.  Run `git commit -m "<message>"`.
+    -   *Requirement*: Use a descriptive commit message based on the actual changes.
+4.  **STOP**. Do not push unless explicitly requested.
+
+### Scenario 3: User asks to "Submit", "Push", or "Sync"
+1.  Perform **Scenario 2** (Commit) if there are uncommitted changes.
+2.  Run `git push`.
+    -   Use `git push -u origin <branch>` if upstream is not set.
 
 ## Best Practices
 
--   **Verify before Push**: Ensure `.gitignore` is respected.
--   **Meaningful Messages**: Commit messages should describe *what* changed and *why*.
--   **Branch Awareness**: Default to `main` or `master`, but respect existing branch names.
--   **Error Handling**: If a command fails (e.g., merge conflict), stop and report to the user.
+-   **Safety First**: When in doubt, ask for confirmation before running `git push`.
+-   **Granularity**: Prefer committing related changes together.
+-   **Visibility**: Always show the output of `git status` or the commit hash to the user.
 
-## Example Workflow
+## Example Commands
 
-```bash
-# 1. Check status
-git status
-
-# 2. Add files
-git add .
-
-# 3. Commit
-git commit -m "feat: implement new login screen"
-
-# 4. Push
-git push
-```
+-   User: "Update the README" -> **Agent**: Edits file. (NO Git action).
+-   User: "Check changes" -> **Agent**: `git status`.
+-   User: "Commit this" -> **Agent**: `git add .` + `git commit`.
+-   User: "Push to github" -> **Agent**: `git push`.
