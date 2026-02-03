@@ -68,9 +68,9 @@ class ExcelDataSource(DataSourceStrategy):
         all_table_names.add(clean_filename)
 
         try:
-            from config.settings import get_config
+            from src.config.settings import get_config
             config = get_config()
-            for key in config.excel.file_paths.keys():
+            for key in config.data_source.excel.file_paths.keys():
                 clean_key = key.replace(" ", "_").replace("-", "_")
                 if clean_key and clean_key[0].isdigit():
                     clean_key = f"df_{clean_key}"

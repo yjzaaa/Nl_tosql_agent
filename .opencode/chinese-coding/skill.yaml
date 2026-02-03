@@ -1,0 +1,104 @@
+# OpenCode 中文编码规范技能配置文件
+
+skill:
+  name: "chinese-coding"
+  version: "1.0.0"
+  description: "强制中文注释的编码规范技能"
+  author: "OpenCode Team"
+  license: "MIT"
+
+# 编码标准配置
+coding_standards:
+  comments:
+    language: "chinese"                    # 强制中文注释
+    required_for:
+      - functions                          # 函数必须注释
+      - classes                            # 类必须注释
+      - methods                            # 方法必须注释
+      - complex_logic                      # 复杂逻辑必须注释
+      - constants                          # 常量建议注释
+    minimum_length: 5                      # 最小注释字符数
+    docstring_required: true               # 函数必须包含 docstring
+
+  naming:
+    convention: "snake_case"               # Python 变量函数命名
+    class_convention: "PascalCase"         # 类命名
+    constant_convention: "UPPER_SNAKE_CASE" # 常量命名
+    max_identifier_length: 50              # 标识符最大长度
+
+  structure:
+    max_function_lines: 100                # 函数最大行数
+    max_class_lines: 500                   # 类最大行数
+    import_order:                          # 导入顺序规范
+      - "stdlib"                           # Python 标准库
+      - "third_party"                      # 第三方库
+      - "local"                            # 项目内部模块
+    required_sections:                     # 文件必需部分
+      - "imports"
+      - "type_definitions"
+      - "constants"
+      - "classes"
+      - "functions"
+      - "main"
+
+# 危险操作黑名单
+security:
+  forbidden_keywords:
+    - "delete"
+    - "drop"
+    - "truncate"
+    - "exec("
+    - "eval("
+    - "__import__"
+    - "open("
+    - "system("
+
+# 技能模块
+skill_modules:
+  - name: "coding_standards"
+    file: "references/coding_standards.md"
+    description: "编码标准细则"
+  
+  - name: "naming_conventions"
+    file: "references/naming_conventions.md"
+    description: "命名约定规范"
+  
+  - name: "metadata"
+    file: "references/metadata.md"
+    description: "业务元数据"
+
+# 示例代码
+examples:
+  - name: "basic_function"
+    description: "基础函数示例"
+    code: |
+      def calculate_total(items: List[float]) -> float:
+          """计算列表中所有项目的总和
+          
+          参数:
+              items: 数值列表
+              
+          返回:
+              所有项目的总和
+          """
+          return sum(items)
+  
+  - name: "class_example"
+    description: "类定义示例"
+    code: |
+      class DataProcessor:
+          """数据处理器 - 负责数据的读取和处理"""
+          
+          def __init__(self, config: Dict[str, Any]):
+              """初始化处理器配置
+              
+              参数:
+                  config: 配置字典
+              """
+              self.config = config
+              self.data = None
+
+# 与其他技能的依赖关系
+dependencies:
+  - "nl-to-sql-agent"
+  - "cost_allocation"

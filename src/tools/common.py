@@ -1,56 +1,67 @@
-"""Common Tools
+"""
+公共工具模块
 
-Provides basic tools for agent use.
+提供智能体使用的基础工具，包括 SQL 查询、成本汇总、费率汇总等功能。
 """
 
-from typing import Dict, Any, List, Optional, Callable
-from abc import ABC, abstractmethod
+from typing import Dict, Any, List, Optional, Callable  # 类型定义
+from abc import ABC, abstractmethod  # 抽象基类
 
 
 class Tool(ABC):
-    """Base tool class"""
+    """
+    工具基类
+
+    所有工具类的抽象基类，定义工具的通用接口。
+    """
 
     @abstractmethod
     def get_name(self) -> str:
-        """Get tool name"""
+        """获取工具名称"""
         pass
 
     @abstractmethod
     def get_description(self) -> str:
-        """Get tool description"""
+        """获取工具描述"""
         pass
 
     @abstractmethod
     def invoke(self, parameters: Dict[str, Any]) -> Any:
-        """Invoke tool with parameters"""
+        """调用工具执行操作"""
         pass
 
     @abstractmethod
     def get_schema(self) -> Dict[str, Any]:
-        """Get tool parameter schema"""
+        """获取工具参数模式"""
         pass
 
 
 class SQLTool(Tool):
-    """SQL query tool"""
+    """
+    SQL 查询工具
+
+    用于在数据源上执行 SQL 查询语句。
+    """
 
     def get_name(self) -> str:
+        """获取工具名称"""
         return "sql_query"
 
     def get_description(self) -> str:
+        """获取工具描述"""
         return "Execute a SQL query on the data source"
 
     def invoke(self, parameters: Dict[str, Any]) -> Any:
         """
-        Execute SQL query
+        执行 SQL 查询
 
-        Args:
-            parameters: Dictionary with 'query' key containing SQL string
+        参数:
+            parameters: 包含 'query' 键的字典，值为 SQL 字符串
 
-        Returns:
-            Query result
+        返回:
+            查询结果字典，包含 'result' 和 'success' 字段
         """
-        from core.data_sources.context_provider import get_data_source_context_provider
+        from core.data_sources.context_provider import get_data_source_context_provider  # 数据源上下文提供者
 
         query = parameters.get('query', '')
         if not query:
@@ -64,6 +75,7 @@ class SQLTool(Tool):
             return {'error': str(e), 'success': False}
 
     def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
             'type': 'object',
             'properties': {
@@ -77,25 +89,31 @@ class SQLTool(Tool):
 
 
 class CostSummaryTool(Tool):
-    """Cost summary tool"""
+    """
+    成本汇总工具
+
+    用于按功能、键值或月份获取成本汇总信息。
+    """
 
     def get_name(self) -> str:
+        """获取工具名称"""
         return "cost_summary"
 
     def get_description(self) -> str:
+        """获取工具描述"""
         return "Get cost summary by function, key, or month"
 
     def invoke(self, parameters: Dict[str, Any]) -> Any:
         """
-        Get cost summary
+        获取成本汇总
 
-        Args:
-            parameters: Optional dictionary with 'by' key (function, key, month)
+        参数:
+            parameters: 可选字典，包含 'by' 键（function, key, month）
 
-        Returns:
-            Cost summary result
+        返回:
+            成本汇总结果字典
         """
-        from core.data_sources.tools import get_cost_summary
+        from core.data_sources.tools import get_cost_summary  # 成本汇总函数
 
         try:
             summary = get_cost_summary()
@@ -104,6 +122,7 @@ class CostSummaryTool(Tool):
             return {'error': str(e), 'success': False}
 
     def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
             'type': 'object',
             'properties': {
@@ -117,25 +136,31 @@ class CostSummaryTool(Tool):
 
 
 class RateSummaryTool(Tool):
-    """Rate summary tool"""
+    """
+    费率汇总工具
+
+    用于按键值或业务线获取费率汇总信息。
+    """
 
     def get_name(self) -> str:
+        """获取工具名称"""
         return "rate_summary"
 
     def get_description(self) -> str:
+        """获取工具描述"""
         return "Get rate summary by key or business line"
 
     def invoke(self, parameters: Dict[str, Any]) -> Any:
         """
-        Get rate summary
+        获取费率汇总
 
-        Args:
-            parameters: Optional dictionary with 'by' key (key, business_line)
+        参数:
+            parameters: 可选字典，包含 'by' 键（key, business_line）
 
-        Returns:
-            Rate summary result
+        返回:
+            费率汇总结果字典
         """
-        from core.data_sources.tools import get_rate_summary
+        from core.data_sources.tools import get_rate_summary  # 费率汇总函数
 
         try:
             summary = get_rate_summary()
@@ -144,6 +169,7 @@ class RateSummaryTool(Tool):
             return {'error': str(e), 'success': False}
 
     def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
             'type': 'object',
             'properties': {
@@ -157,22 +183,28 @@ class RateSummaryTool(Tool):
 
 
 class ListTablesTool(Tool):
-    """List tables tool"""
+    """
+    列出表工具
+
+    用于列出数据源中所有可用的表。
+    """
 
     def get_name(self) -> str:
+        """获取工具名称"""
         return "list_tables"
 
     def get_description(self) -> str:
+        """获取工具描述"""
         return "List all available tables in the data source"
 
     def invoke(self, parameters: Dict[str, Any]) -> Any:
         """
-        List all tables
+        列出所有表
 
-        Returns:
-            List of table names
+        返回:
+            表名列表
         """
-        from core.data_sources.tools import list_all_tables
+        from core.data_sources.tools import list_all_tables  # 列出所有表函数
 
         try:
             tables = list_all_tables()
@@ -181,6 +213,7 @@ class ListTablesTool(Tool):
             return {'error': str(e), 'success': False}
 
     def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
             'type': 'object',
             'properties': {},
@@ -189,25 +222,31 @@ class ListTablesTool(Tool):
 
 
 class GetTableInfoTool(Tool):
-    """Get table info tool"""
+    """
+    获取表信息工具
+
+    用于获取指定表的详细信息，包括行数等。
+    """
 
     def get_name(self) -> str:
+        """获取工具名称"""
         return "get_table_info"
 
     def get_description(self) -> str:
+        """获取工具描述"""
         return "Get information about a specific table including row count"
 
     def invoke(self, parameters: Dict[str, Any]) -> Any:
         """
-        Get table information
+        获取表信息
 
-        Args:
-            parameters: Dictionary with 'table_name' key
+        参数:
+            parameters: 包含 'table_name' 键的字典
 
-        Returns:
-            Table information
+        返回:
+            表信息字典
         """
-        from core.data_sources.tools import get_table_info
+        from core.data_sources.tools import get_table_info  # 获取表信息函数
 
         table_name = parameters.get('table_name')
         if not table_name:
@@ -220,6 +259,7 @@ class GetTableInfoTool(Tool):
             return {'error': str(e), 'success': False}
 
     def get_schema(self) -> Dict[str, Any]:
+        """获取工具参数模式"""
         return {
             'type': 'object',
             'properties': {
@@ -232,25 +272,25 @@ class GetTableInfoTool(Tool):
         }
 
 
-# Create list of all available tools
+# 可用工具列表
 ALL_TOOLS: List[Tool] = [
-    SQLTool(),
-    CostSummaryTool(),
-    RateSummaryTool(),
-    ListTablesTool(),
-    GetTableInfoTool()
+    SQLTool(),                    # SQL 查询工具
+    CostSummaryTool(),            # 成本汇总工具
+    RateSummaryTool(),            # 费率汇总工具
+    ListTablesTool(),             # 列出表工具
+    GetTableInfoTool()            # 获取表信息工具
 ]
 
 
 def get_tool_by_name(tool_name: str) -> Optional[Tool]:
     """
-    Get a tool by name
+    根据名称获取工具
 
-    Args:
-        tool_name: Name of the tool
+    参数:
+        tool_name: 工具名称
 
-    Returns:
-        Tool instance or None if not found
+    返回:
+        工具实例，如果未找到则返回 None
     """
     for tool in ALL_TOOLS:
         if tool.get_name() == tool_name:
@@ -260,36 +300,36 @@ def get_tool_by_name(tool_name: str) -> Optional[Tool]:
 
 def list_tools() -> List[str]:
     """
-    List all available tool names
+    列出所有可用工具名称
 
-    Returns:
-        List of tool names
+    返回:
+        工具名称列表
     """
     return [tool.get_name() for tool in ALL_TOOLS]
 
 
 def get_tool_schemas() -> Dict[str, Dict[str, Any]]:
     """
-    Get schemas for all tools
+    获取所有工具的参数模式
 
-    Returns:
-        Dictionary mapping tool names to their schemas
+    返回:
+        工具名称到参数模式的字典映射
     """
     return {tool.get_name(): tool.get_schema() for tool in ALL_TOOLS}
 
 
-# Alias for execute_pandas_query (backward compatibility)
+# 兼容别名 - execute_pandas_query 的向后兼容
 def execute_pandas_query(query: str, **kwargs) -> Any:
     """
-    Execute a SQL query using data source context
+    使用数据源上下文执行 SQL 查询
 
-    Args:
-        query: SQL query string
+    参数:
+        query: SQL 查询字符串
 
-    Returns:
-        Query result
+    返回:
+        查询结果字符串
     """
-    from core.data_sources.context_provider import get_data_source_context_provider
+    from core.data_sources.context_provider import get_data_source_context_provider  # 数据源上下文提供者
 
     try:
         context_provider = get_data_source_context_provider()
@@ -299,22 +339,22 @@ def execute_pandas_query(query: str, **kwargs) -> Any:
         return f"Error executing query: {str(e)}"
 
 
-# Placeholder functions for business logic
+# 业务逻辑占位函数
 def calculate_allocated_costs(**kwargs) -> str:
-    """Calculate allocated costs"""
+    """计算分摊成本"""
     return "Allocated costs calculation"
 
 
 def compare_scenarios(**kwargs) -> str:
-    """Compare scenarios"""
+    """对比场景"""
     return "Scenario comparison"
 
 
 def compare_allocated_costs(**kwargs) -> str:
-    """Compare allocated costs"""
+    """对比分摊成本"""
     return "Allocated costs comparison"
 
 
 def analyze_cost_composition(**kwargs) -> str:
-    """Analyze cost composition"""
+    """分析成本构成"""
     return "Cost composition analysis"

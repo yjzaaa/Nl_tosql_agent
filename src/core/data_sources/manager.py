@@ -37,10 +37,11 @@ class DataSourceManager:
         self._current_strategy = None
         self._current_strategy_name = None
         self._available_strategies = {}
-        self._detect_available_strategies()
 
-        # Set sql_server_available for compatibility
+        # Set sql_server_available for compatibility - must be BEFORE detect
         self.sql_server_available = False
+
+        self._detect_available_strategies()
     
     def _detect_available_strategies(self):
         """检测可用的数据源策略"""

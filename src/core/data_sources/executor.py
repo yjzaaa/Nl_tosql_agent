@@ -127,12 +127,18 @@ class DataSourceExecutor:
         kwargs = {"query": sql_query}
 
         if data_source_type == "excel":
-            config = get_config()
-            if config.excel.file_paths:
-                first_table = list(config.excel.file_paths.keys())[0]
-                file_path = config.excel.file_paths[first_table]
-                kwargs["file_path"] = file_path
-                kwargs["sheet_name"] = first_table
+            try:
+                config = get_config()
+                if config and hasattr(config, 'data_source') and hasattr(config.data_source, 'excel'):
+                    excel_config = config.data_source.excel
+                    if hasattr(excel_config, 'file_paths') and excel_config.file_paths:
+                        first_table = list(excel_config.file_paths.keys())[0]
+                        file_path = excel_config.file_paths.get(first_table)
+                        if file_path:
+                            kwargs["file_path"] = file_path
+                            kwargs["sheet_name"] = first_table
+            except Exception as e:
+                logger.warning(f"无法获取 Excel 配置: {e}")
 
         self.configure(source_type=data_source_type, **kwargs)
         return self.execute(sql_query)

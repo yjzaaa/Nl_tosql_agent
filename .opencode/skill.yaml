@@ -1,0 +1,126 @@
+---
+name: opencode-skills
+version: 1.0.0
+description: "OpenCode 技能库 - 包含中文编码规范等必备开发技能"
+license: MIT
+---
+
+# OpenCode 技能库
+
+本技能库包含 OpenCode 智能体开发必备的技能集合。
+
+## 可用技能
+
+### 1. chinese-coding（中文编码规范）
+
+**描述**: 强制要求所有代码使用中文注释，确保代码可读性和团队协作效率。
+
+**功能**:
+- 中文注释检查和验证
+- 编码规范检查
+- 命名约定检查
+- 代码结构规范
+
+**使用方法**:
+```python
+from skills.loader import SkillLoader
+
+loader = SkillLoader(skill_path=".opencode")
+skill = loader.load_skill("chinese-coding")
+```
+
+**配置文件**: `chinese-coding/skill.yaml`
+
+### 2. nl-to-sql-agent（自然语言转SQL）
+
+**描述**: 将自然语言查询转换为 SQL 语句并执行。
+
+**详情**: 参见项目根目录的 `SKILL.md`
+
+### 3. cost_allocation（成本分摊）
+
+**描述**: IT 功能成本分摊业务逻辑。
+
+**详情**: 参见 `skills/cost_allocation/SKILL.md`
+
+## 目录结构
+
+```
+.opencode/
+├── SKILL.md                    # 技能库主文档
+├── skill.yaml                  # 技能库配置
+└── chinese-coding/             # 中文编码规范技能
+    ├── SKILL.md               # 技能文档
+    ├── skill.yaml             # 技能配置
+    └── references/            # 参考文档
+        ├── metadata.md        # 业务元数据
+        ├── coding_standards.md # 编码标准
+        └── naming_conventions.md # 命名约定
+```
+
+## 使用方法
+
+### 加载技能库
+
+```python
+from skills.loader import SkillLoader
+
+# 加载 OpenCode 技能库
+loader = SkillLoader(skill_path=".opencode")
+skills = loader.list_available_skills()
+
+print("可用技能:", skills)
+```
+
+### 使用中文编码技能
+
+```python
+from skills.loader import SkillLoader
+from src.skills.middleware import SkillMiddleware
+
+# 加载技能
+loader = SkillLoader(skill_path=".opencode")
+coding_skill = loader.load_skill("chinese-coding")
+
+# 创建中间件
+middleware = SkillMiddleware(
+    skill_path=".opencode",
+    default_skill="chinese-coding",
+    llm=get_llm()
+)
+```
+
+## 集成到项目
+
+### 在主程序中使用
+
+```python
+from src.nl_to_sql_agent import NLToSQLAgent
+from src.skills.middleware import SkillMiddleware
+
+# 创建支持中文编码的 Agent
+agent = NLToSQLAgent(
+    skill_path=".opencode",
+    skill_name="chinese-coding"
+)
+```
+
+### 配置检查工具
+
+```python
+# 使用技能提供的规范检查代码
+from .skills.chineseCoding import CodingStandards
+
+standards = CodingStandards()
+is_valid = standards.validate_code(source_code)
+
+if not is_valid:
+    print("代码不符合中文注释规范")
+```
+
+## 版本历史
+
+- v1.0.0 (2024-02-03): 初始版本
+  - 添加 chinese-coding 技能
+  - 包含编码规范、命名约定等规则
+  - 支持与现有 NL to SQL Agent 集成

@@ -116,6 +116,9 @@ data_source:
   excel:
     type: excel
     file_paths:
+      # 请填入 Excel 文件的完整路径，示例：
+      # cost_database: "data/cost_database.xlsx"
+      # rate_table: "data/rate_table.xlsx"
       cost_database: ""
       rate_table: ""
       cc_mapping: ""
