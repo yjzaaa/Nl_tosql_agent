@@ -4,7 +4,6 @@ Provides prompt templates for NL to SQL agents.
 """
 
 from .manager import (
-    INTENT_ANALYSIS_PROMPT,
     SQL_GENERATION_PROMPT,
     SQL_VALIDATION_PROMPT,
     RESULT_REVIEW_PROMPT,
@@ -13,7 +12,6 @@ from .manager import (
 )
 
 __all__ = [
-    "INTENT_ANALYSIS_PROMPT",
     "SQL_GENERATION_PROMPT",
     "SQL_VALIDATION_PROMPT",
     "RESULT_REVIEW_PROMPT",

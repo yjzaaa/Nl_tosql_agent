@@ -18,7 +18,7 @@
 2. **字段与别名**: 所有字段与别名必须使用方括号包裹。
 3. **语法规范**: 单语句、ORDER BY 仅用显式字段/别名、GROUP BY 完整。
 4. **逻辑合理性**: 是否能回答用户问题？
-5. **业务规则**: 表/字段/联表/分摊规则见 business/metadata.md。
+5. **业务规则**: 表名映射与规则见当前业务 skill 的 references/metadata.md 与 references/business_rules.md。
 
 ## 输出格式
 

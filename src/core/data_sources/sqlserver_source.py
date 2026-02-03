@@ -32,13 +32,14 @@ class SQLServerDataSource(DataSourceStrategy):
         初始化SQL Server数据源
         """
         config = get_config()
+        mssql_config = config.data_source.sqlserver
 
         # Priority: explicit args > config > defaults
         self.host = (
-            host if host != "localhost" else (config.data_source.mssql_host or "localhost")
+            host if host != "localhost" else (mssql_config.host or "localhost")
         )
         # Handle port conversion safely
-        config_port = config.data_source.mssql_port
+        config_port = mssql_config.port
         if isinstance(config_port, str) and config_port.isdigit():
             config_port = int(config_port)
         elif isinstance(config_port, str):
@@ -48,22 +49,22 @@ class SQLServerDataSource(DataSourceStrategy):
         self.database = (
             database
             if database != "master"
-            else (config.data_source.mssql_database or "master")
+            else (mssql_config.database or "master")
         )
         self.user = (
-            user if user != "sa" else (config.data_source.mssql_user or "sa")
+            user if user != "sa" else (mssql_config.user or "sa")
         )
         self.password = (
             password
             if password != ""
-            else (config.data_source.mssql_password or "")
+            else (mssql_config.password or "")
         )
         self.driver = (
             driver 
             if driver != "ODBC Driver 17 for SQL Server" 
-            else (config.data_source.mssql_driver or "ODBC Driver 17 for SQL Server")
+            else (mssql_config.driver or "ODBC Driver 17 for SQL Server")
         )
-        self.schema = schema
+        self.schema = schema if schema != "dbo" else (mssql_config.schema or "dbo")
         self.connection_params = connection_params or {}
 
         self._engine = None
@@ -253,6 +254,23 @@ class SQLServerDataSource(DataSourceStrategy):
 
         from sqlalchemy import text
 
+        def _quote_ident(name: str) -> str:
+            return "[" + name.replace("]", "]]" ) + "]"
+
+        def _format_samples(values: List[Any], max_len: int = 50) -> str:
+            if not values:
+                return "N/A"
+            formatted = []
+            for v in values:
+                if isinstance(v, str):
+                    v = v.strip()
+                    if len(v) > max_len:
+                        v = v[: max_len - 3] + "..."
+                    formatted.append(f"'{v}'")
+                else:
+                    formatted.append(str(v))
+            return ", ".join(formatted)
+
         try:
             with engine.connect() as conn:
                 for table_name in table_names:
@@ -271,17 +289,34 @@ class SQLServerDataSource(DataSourceStrategy):
                     """
                     )
 
-                    columns = conn.execute(
-                        columns_query,
-                        {"table_name": table_name, "schema": self.schema},
+                    columns = list(
+                        conn.execute(
+                            columns_query,
+                            {"table_name": table_name, "schema": self.schema},
+                        )
                     )
 
                     schema_info.append(f"\n=== Table: {table_name} ===\n")
 
                     for col in columns:
+                        column_name = col[0]
+                        sample_values: List[Any] = []
+                        try:
+                            sample_query = text(
+                                f"""
+                                SELECT DISTINCT TOP (3) {_quote_ident(column_name)}
+                                FROM {_quote_ident(self.schema)}.{_quote_ident(table_name)}
+                                WHERE {_quote_ident(column_name)} IS NOT NULL
+                                """
+                            )
+                            sample_values = [row[0] for row in conn.execute(sample_query)]
+                        except Exception:
+                            sample_values = []
+
                         schema_info.append(
-                            f"{col[0]:<30} {col[1]} "
-                            f"(max length: {col[2] or 'N/A'}, nullable: {col[3]})"
+                            f"{column_name:<30} {col[1]} "
+                            f"(max length: {col[2] or 'N/A'}, nullable: {col[3]}, "
+                            f"samples: {_format_samples(sample_values)})"
                         )
 
         except Exception as e:

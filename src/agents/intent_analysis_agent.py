@@ -6,22 +6,17 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage
 
-from src.core.schemas import IntentAnalysisResult
-from src.core.data_sources.context_provider import get_data_source_context_provider
-from src.core.metadata import resolve_table_names
-
-from src.prompts.manager import INTENT_ANALYSIS_PROMPT, render_prompt_template
-from src.agents.llm import get_llm
+import json
+from src.prompts.manager import render_prompt_template
+from src.core.llm import get_llm
 from src.config.logger import LoggerManager
 
 if TYPE_CHECKING:
     from workflow.graph import AgentState
 
 
-def analyze_intent_node(state: "AgentState") -> "AgentState":
-    """意图分析节点 - 通过 DataSourceContextProvider 获取数据源上下文"""
-    LoggerManager().info("Starting analyze_intent_node")
-
+def analyze_intent_node(state: AgentState) -> AgentState:
+    """意图分析节点 - 仅判断是否为数据相关问题"""
     try:
         user_query = state.get("user_query", "")
         if not user_query:
@@ -30,42 +25,37 @@ def analyze_intent_node(state: "AgentState") -> "AgentState":
                     user_query = msg.content
                     break
 
-        skill = state.get("skill")
-        skill_metadata = skill.get_metadata() if skill else {}
+        prompt = render_prompt_template(
+            """
+你是一个问题分类器。请判断用户问题是否与数据查询/数据分析相关。
 
-        table_names = state.get("table_names") or resolve_table_names(
-            user_query, state.get("intent_analysis"), skill_metadata
-        )
-        state["table_names"] = table_names
+## 用户问题
+{user_query}
 
-        context_provider = get_data_source_context_provider()
-
-        try:
-            excel_summary = context_provider.get_data_source_context(table_names)
-        except Exception as e:
-            excel_summary = f"Cannot get data source schema: {e}. Please infer fields from user query."
-
-        error_context = state.get("error_message", "")
-
-        additional_instruction = ""
-        if error_context:
-            additional_instruction = (
-                f"\n\nLast attempt failed, error: {error_context}."
-                "\nPlease check the user query carefully and extract missing parameters."
-            )
-
-        prompt = (
-            render_prompt_template(
-                INTENT_ANALYSIS_PROMPT,
-                database_context=excel_summary,
-                user_query=user_query,
-            )
-            + additional_instruction
+## 输出要求
+仅返回 JSON：
+{{"is_data_query": true|false, "reason": "简短原因"}}
+""",
+            user_query=user_query,
         )
 
-        llm = get_llm()
+        llm = state.get("llm") or get_llm()
         response = llm.invoke([HumanMessage(content=prompt)])
-        state["intent_analysis"] = response
+        content = response.content.strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+        try:
+            parsed = json.loads(content)
+            state["intent_analysis"] = parsed
+        except Exception:
+            lowered = user_query.lower()
+            is_data = any(
+                key in lowered
+                for key in ["查询", "统计", "报表", "数据", "sql", "select", "趋势", "对比", "分析"]
+            )
+            state["intent_analysis"] = {
+                "is_data_query": is_data,
+                "reason": "heuristic",
+            }
 
         return state
     except Exception as e:

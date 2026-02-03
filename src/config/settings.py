@@ -45,6 +45,11 @@ class ModelConfig(BaseModel):
         if self.active and self.active in self.providers:
             return self.providers[self.active]
 
+        if self.providers:
+            raise ValueError(
+                f"Active model provider '{self.active}' not found in config.yaml."
+            )
+
         # Fallback to legacy behavior if providers dict is empty but legacy fields exist
         if not self.providers and self.provider:
             return ProviderConfig(
@@ -56,16 +61,7 @@ class ModelConfig(BaseModel):
                 max_tokens=self.max_tokens or 4096,
             )
 
-        # Fallback to env vars if absolutely nothing is configured (shouldn't happen with valid config.yaml)
-        # Or construct a default one
-        return ProviderConfig(
-            provider=os.environ.get("LLM_PROVIDER", "openai"),
-            model_name=os.environ.get("LLM_MODEL", "gpt-4"),
-            api_key=os.environ.get("LLM_API_KEY", ""),
-            base_url=os.environ.get("LLM_BASE_URL"),
-            temperature=float(os.environ.get("LLM_TEMPERATURE", "0.1")),
-            max_tokens=int(os.environ.get("LLM_MAX_TOKENS", "4096")),
-        )
+        raise ValueError("No model providers configured in config.yaml.")
 
 
 class ServerConfig(BaseModel):
@@ -110,50 +106,57 @@ class ExcelConfig(BaseModel):
     max_result_limit: int = 1000
 
 
+class PostgreSQLConfig(BaseModel):
+    """PostgreSQL 配置"""
+
+    type: str = "postgresql"
+    host: str = "localhost"
+    port: int = 5432
+    database: str = "postgres"
+    user: str = "postgres"
+    password: str = ""
+    schema: str = "public"
+    pool_size: int = 5
+    max_overflow: int = 10
+    pool_timeout: int = 30
+    pool_recycle: int = 3600
+    connect_timeout: int = 10
+    statement_timeout: int = 30
+    max_retries: int = 3
+    retry_delay: int = 1
+
+
+class SQLServerConfig(BaseModel):
+    """SQL Server 配置"""
+
+    type: str = "sqlserver"
+    host: str = "localhost"
+    port: int = 1433
+    database: str = "master"
+    user: str = "sa"
+    password: str = ""
+    driver: str = "ODBC Driver 17 for SQL Server"
+    schema: str = "dbo"
+
+
+class ExcelDataSourceConfig(BaseModel):
+    """Excel 数据源配置"""
+
+    type: str = "excel"
+    file_paths: Dict[str, str] = Field(default_factory=dict)
+
+
 class DataSourceConfig(BaseModel):
     """数据源配置"""
 
-    type: str = "excel"  # 当前激活的数据源类型: excel, postgresql, sqlserver
+    type: str = "excel"  # 当前激活的数据源类型: excel, postgresql, sqlserver, auto
     config: Dict[str, Any] = Field(default_factory=dict)
-
-    # PostgreSQL specific config (loaded from env)
-    pg_host: str = Field(
-        default_factory=lambda: os.environ.get("POSTGRES_HOST", "localhost")
-    )
-    pg_port: int = Field(
-        default_factory=lambda: int(os.environ.get("POSTGRES_PORT", "5432"))
-    )
-    pg_database: str = Field(
-        default_factory=lambda: os.environ.get("POSTGRES_DB", "postgres")
-    )
-    pg_user: str = Field(
-        default_factory=lambda: os.environ.get("POSTGRES_USER", "postgres")
-    )
-    pg_password: str = Field(
-        default_factory=lambda: os.environ.get("POSTGRES_PASSWORD", "postgres")
-    )
-    pg_schema: str = "public"
-
-    # SQL Server specific config (loaded from env)
-    mssql_host: str = Field(
-        default_factory=lambda: os.environ.get("MSSQL_HOST", "localhost")
-    )
-    mssql_port: int = Field(
-        default_factory=lambda: int(os.environ.get("MSSQL_PORT", "1433"))
-    )
-    mssql_database: str = Field(
-        default_factory=lambda: os.environ.get("MSSQL_DB", "master")
-    )
-    mssql_user: str = Field(
-        default_factory=lambda: os.environ.get("MSSQL_USER", "sa")
-    )
-    mssql_password: str = Field(
-        default_factory=lambda: os.environ.get("MSSQL_PASSWORD", "")
-    )
-    mssql_driver: str = Field(
-        default_factory=lambda: os.environ.get("MSSQL_DRIVER", "ODBC Driver 17 for SQL Server")
-    )
-    mssql_schema: str = "dbo"
+    data_source_strategy: str = "auto"
+    postgresql: PostgreSQLConfig = Field(default_factory=PostgreSQLConfig)
+    sqlserver: SQLServerConfig = Field(default_factory=SQLServerConfig)
+    excel: ExcelDataSourceConfig = Field(default_factory=ExcelDataSourceConfig)
+    table_names: Dict[str, str] = Field(default_factory=dict)
+    data_source_priority: Dict[str, int] = Field(default_factory=dict)
 
 
 class LoggingConfig(BaseModel):

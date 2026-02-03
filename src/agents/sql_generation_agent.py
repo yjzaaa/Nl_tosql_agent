@@ -24,17 +24,18 @@ CORE_TOOLS = [
     analyze_cost_composition,
 ]
 
-from src.agents.llm import get_llm
-from src.config.logger_interface import get_logger_manager
+from src.core.llm import get_llm
+ 
+from src.prompts import SQL_GENERATION_PROMPT, render_prompt_template
+from src.core.metadata import get_sql_generation_rules
 
 if TYPE_CHECKING:
     from workflow.graph import AgentState
 
 
-def generate_sql_node(state: "AgentState") -> "AgentState":
+def generate_sql_node(state: AgentState) -> AgentState:
     """SQL 生成节点 - 通过 DataSourceContextProvider 获取数据源上下文，并支持动态加载业务逻辑技能"""
-    logger = get_logger_manager()
-    logger.info("Starting generate_sql_node")
+    
 
     try:
         skill = state.get("skill")
@@ -43,7 +44,7 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
         data_source_context = context_provider.get_data_source_context(
             state.get("table_names", []), skill=skill
         )
-        logger.info(f"Loaded Data Source Context:\n{data_source_context}")
+
         user_query = state.get("user_query", "")
         intent_analysis = state.get("intent_analysis", "")
 
@@ -58,8 +59,14 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
             )
 
         prompt_template = SQL_GENERATION_PROMPT
-        sqlite_rules = context_provider.get_sql_rules()
+        data_source_type = state.get("data_source_type") or "postgresql"
+        if context_provider.is_excel_mode():
+            data_source_type = "excel"
+        elif context_provider.is_sql_server_mode():
+            data_source_type = "sqlserver"
 
+        sql_rules = get_sql_generation_rules(data_source_type, skill=skill)
+        skill_context = state.get("skill_context", "")
         # 渲染初始 Prompt
         prompt = render_prompt_template(
             prompt_template,
@@ -67,15 +74,15 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
             intent_analysis=intent_analysis,
             user_query=user_query,
             error_context=error_context,
-            sqlite_rules=sqlite_rules,
+            sql_rules=sql_rules,
+            skill_context=skill_context,
         )
 
-        llm = get_llm()
+        llm = state.get("llm") or get_llm()
 
-        # 定义工具集：检索工具（代理应执行）和 执行工具（代理应返回）
-        retrieval_tools = [lookup_business_logic]
+        # 定义工具集：仅保留执行工具（代理应返回）
         execution_tools = CORE_TOOLS
-        all_tools = retrieval_tools + execution_tools
+        all_tools = execution_tools
 
         # 绑定工具
         llm_with_tools = llm.bind_tools(all_tools)
@@ -84,23 +91,21 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
         messages = [HumanMessage(content=prompt)]
 
         # React 循环逻辑 (LangGraph 风格的简单实现)
-        MAX_ITERATIONS = 5
+        MAX_ITERATIONS = 1
         sql = ""
 
         for i in range(MAX_ITERATIONS):
-            logger.info(f"Generate SQL Iteration {i+1}")
+            
             response = llm_with_tools.invoke(messages)
             messages.append(response)
-            logger.info(
-                f"LLM Response: {response.content}, Tool Calls: {response.tool_calls}"
-            )
+
 
             if not response.tool_calls:
                 # 无工具调用，直接作为 SQL 代码处理
                 sql = (
                     response.content.replace("```python", "").replace("```", "").strip()
                 )
-                logger.info(f"Generated SQL: {sql}")
+
                 break
 
             # 处理工具调用
@@ -111,26 +116,7 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
 
-                if tool_name == "lookup_business_logic":
-                    # 执行业务逻辑检索
-                    try:
-                        tool_output = lookup_business_logic.invoke(tool_args)
-                        messages.append(
-                            ToolMessage(
-                                tool_call_id=tool_call["id"], content=str(tool_output)
-                            )
-                        )
-                        should_continue = True  # 继续循环以利用新信息
-                    except Exception as e:
-                        messages.append(
-                            ToolMessage(
-                                tool_call_id=tool_call["id"],
-                                content=f"工具执行错误: {str(e)}",
-                            )
-                        )
-                        should_continue = True
-
-                elif tool_name in [t.name for t in execution_tools]:
+                if tool_name in [t.name for t in execution_tools]:
                     # 如果调用了执行工具，这不仅是检索，而是最终的执行计划
                     # 我们将其序列化为 JSON 并作为结果返回，由 execute_sql_node 执行
                     sql = json.dumps(
@@ -152,14 +138,14 @@ def generate_sql_node(state: "AgentState") -> "AgentState":
                     .replace("```", "")
                     .strip()
                 )
-                logger.info(f"Max iterations reached. Using last content as SQL: {sql}")
+
 
         state["sql_query"] = sql
         state["retry_count"] = state.get("retry_count", 0) + 1
         return state
 
     except Exception as e:
-        logger.error(f"generate_sql_node error: {str(e)}")
+
         state["error_message"] = f"generate_sql节点执行错误。错误详情：{str(e)}"
         state["retry_count"] = state.get("retry_count", 0) + 1
         return state

@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import HumanMessage
 
 from src.core.data_sources.context_provider import get_data_source_context_provider
-from src.agents.llm import get_llm
+from src.core.llm import get_llm
 from src.prompts.manager import SQL_VALIDATION_PROMPT, render_prompt_template
-from src.config.logger import LoggerManager
+from src.core.metadata import get_sql_generation_rules
+ 
 # from sqlserver import get_schema_columns_info
 
 
@@ -17,9 +18,9 @@ if TYPE_CHECKING:
     from workflow.graph import AgentState
 
 
-def validate_sql_node(state: "AgentState") -> "AgentState":
+def validate_sql_node(state: AgentState) -> AgentState:
     """SQL 验证节点 - 通过 DataSourceContextProvider 获取数据源信息"""
-    LoggerManager().info(f"Starting validate_sql_node. SQL: {state.get('sql_query')}")
+    
 
     try:
         sql = state.get("sql_query", "")
@@ -72,26 +73,28 @@ def validate_sql_node(state: "AgentState") -> "AgentState":
         # Use context provider to get schema info for SQL mode (Postgres)
         columns_info = context_provider.get_data_source_context(state.get("table_names"))
 
-        sqlite_rules = context_provider.get_sql_rules()
+        data_source_type = state.get("data_source_type") or "postgresql"
+        if context_provider.is_excel_mode():
+            data_source_type = "excel"
+        elif context_provider.is_sql_server_mode():
+            data_source_type = "sqlserver"
+
         skill = state.get("skill")
-        if skill and hasattr(skill, 'get_module_content'):
-            skill_sql_rules = skill.get_module_content("sql_rules")
-            if skill_sql_rules:
-                sqlite_rules = skill_sql_rules
+        sql_rules = get_sql_generation_rules(data_source_type, skill=skill)
 
         prompt = render_prompt_template(
             SQL_VALIDATION_PROMPT,
             database_context=columns_info,
             sql_query=sql,
             extra_rule=f"""
-            Important validation rules:
-            {sqlite_rules}
-            3. Syntax errors/column errors/non-SELECT syntax = INVALID;
-            4. Only return 【VALID】 or 【INVALID + reason】.
+            重要校验规则：
+            {sql_rules}
+            3. 语法错误/字段错误/非 SELECT 语法 => INVALID；
+            4. 仅返回【VALID】或【INVALID + 原因】。
             """,
         )
 
-        llm = get_llm()
+        llm = state.get("llm") or get_llm()
         response = llm.invoke([HumanMessage(content=prompt)])
         result = response.content.strip().upper()
 

@@ -7,6 +7,7 @@ from langgraph.graph.message import add_messages
 
 from src.config.logger_interface import get_logger
 from src.skills.loader import SkillLoader, Skill
+from src.skills.middleware.skill_middleware import select_skill_node
 
 logger = get_logger("skill_aware_graph")
 
@@ -27,12 +28,16 @@ class SkillAwareState(TypedDict):
 
     table_names: Annotated[Optional[List[str]], lambda x, y: y]
     data_source_type: Annotated[Optional[str], lambda x, y: y]
+    data_source_schema: Annotated[Optional[Dict[str, Any]], lambda x, y: y]
 
     error_message: Annotated[Optional[str], lambda x, y: y]
     retry_count: Annotated[Optional[int], lambda x, y: y]
 
     skill: Optional[Skill]
     skill_name: Optional[str]
+    skill_context: Annotated[Optional[Dict[str, Any]], lambda x, y: y]
+    skill_selected_by: Annotated[Optional[str], lambda x, y: y]
+    skill_confidence: Annotated[Optional[float], lambda x, y: y]
 
 
 class SkillAwareWorkflow:
@@ -54,6 +59,7 @@ class SkillAwareWorkflow:
 
         workflow = StateGraph(SkillAwareState)
 
+        workflow.add_node("select_skill", select_skill_node)
         workflow.add_node("load_context", load_context_node)
         workflow.add_node("analyze_intent", analyze_intent_node)
         workflow.add_node("generate_sql", generate_sql_node)
@@ -62,8 +68,9 @@ class SkillAwareWorkflow:
         workflow.add_node("review_result", review_result_node)
         workflow.add_node("refine_answer", refine_answer_node)
 
-        workflow.set_entry_point("analyze_intent")
+        workflow.set_entry_point("select_skill")
 
+        workflow.add_edge("select_skill", "analyze_intent")
         workflow.add_edge("analyze_intent", "load_context")
         workflow.add_edge("load_context", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")

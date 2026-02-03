@@ -14,7 +14,7 @@
 
 ## 任务
 
-- 判断意图并提取参数（意图类型与参数规范见 business/metadata.md）。
+- 判断意图并提取参数（意图类型与参数规范见当前业务 skill 的 references/metadata.md）。
 
 ## 输出要求
 

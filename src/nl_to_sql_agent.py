@@ -8,6 +8,8 @@ from pathlib import Path
 from src.config.logger_interface import get_logger
 from src.skills.loader import SkillLoader, Skill
 from src.graph.graph import GraphWorkflow, AgentState
+from src.skills.middleware import SkillMiddleware
+from src.core.llm import get_llm
 
 logger = get_logger("main")
 
@@ -20,6 +22,11 @@ class NLToSQLAgent:
         self.skill_name = skill_name or "nl-to-sql-agent"
         self.skill: Optional[GraphWorkflow] = None
         self.workflow: Optional[GraphWorkflow] = None
+        self.skill_middleware = SkillMiddleware(
+            skill_path=str(self.skill_path),
+            default_skill=self.skill_name,
+            llm=get_llm(),
+        )
 
         self._initialize()
 
@@ -37,6 +44,24 @@ class NLToSQLAgent:
     def query(self, user_query: str, **kwargs) -> dict:
         """Execute a natural language query"""
 
+        if kwargs.get("force_skill"):
+            selection = {
+                "skill": self.skill,
+                "skill_name": self.skill_name,
+                "skill_context": None,
+                "skill_selected_by": "forced",
+                "skill_confidence": None,
+            }
+        else:
+            selection = self.skill_middleware.run(user_query)
+
+        selected_skill = selection.get("skill") or self.skill
+        selected_skill_name = selection.get("skill_name") or self.skill_name
+
+        if selected_skill_name != self.skill_name:
+            self.skill_name = selected_skill_name
+            self.skill = selected_skill
+
         initial_state: AgentState = {
             "trace_id": kwargs.get("trace_id"),
             "messages": [],
@@ -51,8 +76,11 @@ class NLToSQLAgent:
             "data_source_type": kwargs.get("data_source_type", "excel"),
             "error_message": None,
             "retry_count": 0,
-            "skill": self.skill,
-            "skill_name": self.skill_name,
+            "skill": selected_skill,
+            "skill_name": selected_skill_name,
+            "skill_context": selection.get("skill_context"),
+            "skill_selected_by": selection.get("skill_selected_by"),
+            "skill_confidence": selection.get("skill_confidence"),
             **kwargs,
         }
 

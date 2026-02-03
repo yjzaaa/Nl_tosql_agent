@@ -31,13 +31,14 @@ class PostgreSQLDataSource(DataSourceStrategy):
         初始化PostgreSQL数据源
         """
         config = get_config()
+        pg_config = config.data_source.postgresql
 
         # Priority: explicit args > config > defaults
         self.host = (
-            host if host != "localhost" else (config.data_source.pg_host or "localhost")
+            host if host != "localhost" else (pg_config.host or "localhost")
         )
         # Handle port conversion safely
-        config_port = config.data_source.pg_port
+        config_port = pg_config.port
         if isinstance(config_port, str) and config_port.isdigit():
             config_port = int(config_port)
         elif isinstance(config_port, str):
@@ -48,17 +49,15 @@ class PostgreSQLDataSource(DataSourceStrategy):
         self.database = (
             database
             if database != "postgres"
-            else (config.data_source.pg_database or "postgres")
+            else (pg_config.database or "postgres")
         )
         self.user = (
-            user if user != "postgres" else (config.data_source.pg_user or "postgres")
+            user if user != "postgres" else (pg_config.user or "postgres")
         )
         self.password = (
-            password
-            if password != "postgres"
-            else (config.data_source.pg_password or "postgres")
+            password if password != "postgres" else (pg_config.password or "postgres")
         )
-        self.schema = schema
+        self.schema = schema if schema != "public" else (pg_config.schema or "public")
         self.connection_params = connection_params or {}
 
         self._engine = None
@@ -240,6 +239,23 @@ class PostgreSQLDataSource(DataSourceStrategy):
 
         from sqlalchemy import text
 
+        def _quote_ident(name: str) -> str:
+            return '"' + name.replace('"', '""') + '"'
+
+        def _format_samples(values: List[Any], max_len: int = 50) -> str:
+            if not values:
+                return "N/A"
+            formatted = []
+            for v in values:
+                if isinstance(v, str):
+                    v = v.strip()
+                    if len(v) > max_len:
+                        v = v[: max_len - 3] + "..."
+                    formatted.append(f"'{v}'")
+                else:
+                    formatted.append(str(v))
+            return ", ".join(formatted)
+
         try:
             with engine.connect() as conn:
                 for table_name in table_names:
@@ -258,17 +274,35 @@ class PostgreSQLDataSource(DataSourceStrategy):
                     """
                     )
 
-                    columns = conn.execute(
-                        columns_query,
-                        {"table_name": table_name.lower(), "schema": self.schema},
+                    columns = list(
+                        conn.execute(
+                            columns_query,
+                            {"table_name": table_name.lower(), "schema": self.schema},
+                        )
                     )
 
                     schema_info.append(f"\n=== Table: {table_name} ===\n")
 
                     for col in columns:
+                        column_name = col[0]
+                        sample_values: List[Any] = []
+                        try:
+                            sample_query = text(
+                                f"""
+                                SELECT DISTINCT {_quote_ident(column_name)}
+                                FROM {_quote_ident(self.schema)}.{_quote_ident(table_name)}
+                                WHERE {_quote_ident(column_name)} IS NOT NULL
+                                LIMIT 3
+                                """
+                            )
+                            sample_values = [row[0] for row in conn.execute(sample_query)]
+                        except Exception:
+                            sample_values = []
+
                         schema_info.append(
-                            f"{col[0]:<30} {col[1]} "
-                            f"(max length: {col[2] or 'N/A'}, nullable: {col[3]})"
+                            f"{column_name:<30} {col[1]} "
+                            f"(max length: {col[2] or 'N/A'}, nullable: {col[3]}, "
+                            f"samples: {_format_samples(sample_values)})"
                         )
 
         except Exception as e:

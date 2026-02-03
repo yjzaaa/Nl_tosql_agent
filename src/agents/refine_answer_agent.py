@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage
 
 # from config.logger_interface import log_workflow_step
 
-from src.agents.llm import get_llm
+from src.core.llm import get_llm
 from src.prompts.manager import ANSWER_REFINEMENT_PROMPT, render_prompt_template
 
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from workflow.graph import AgentState
 
 
-def refine_answer_node(state: "AgentState") -> "AgentState":
+def refine_answer_node(state: AgentState) -> AgentState:
     """生成最终回答节点"""
     # log_workflow_step("RefineAnswer", "开始生成最终回答", "running")
 
@@ -41,7 +41,7 @@ def refine_answer_node(state: "AgentState") -> "AgentState":
         )
         # log_workflow_step("RefineAnswer", "检测到执行错误，添加警告", "warning")
 
-    llm = get_llm()
+    llm = state.get("llm") or get_llm()
     response = llm.invoke([HumanMessage(content=prompt)])
     state["messages"] = [response]
 

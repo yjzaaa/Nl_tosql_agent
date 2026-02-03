@@ -19,9 +19,9 @@ except ImportError:
         return None
 
 
-from src.config.logger_interface import get_logger, log_workflow_step
+from src.config.logger_interface import get_logger
 
-# logger = get_logger("data_source_executor")
+logger = get_logger("data_source_executor")
 
 
 class DataSourceExecutor:

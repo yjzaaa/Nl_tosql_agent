@@ -6,18 +6,9 @@ import re
 from typing import Any, Dict, List, Optional, Union
 from abc import ABC, abstractmethod
 
-import colorama
-
-colorama.init(autoreset=True)
-
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.panel import Panel
-from rich.tree import Tree
 from rich.syntax import Syntax
-from rich.text import Text
-from rich.theme import Theme
-from rich import print as rprint
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -50,60 +41,14 @@ class LoggerManager:
 
     def _setup_console(self):
         """初始化 Rich 控制台"""
-        CUSTOM_THEME = Theme(
-            {
-                "info": "dim cyan",
-                "warning": "italic yellow",
-                "error": "bold red",
-                "success": "bold green",
-                "debug": "dim blue",
-                "user": "cyan",
-                "ai": "green",
-                "system": "yellow",
-                "tool": "magenta",
-            }
-        )
-        self.console = Console(
-            force_terminal=True, color_system="auto", theme=CUSTOM_THEME
-        )
+        self.console = Console(force_terminal=True, color_system="auto")
 
     def _setup_color_maps(self):
         """配置颜色映射"""
-        self.MESSAGE_COLORS = {
-            "Human": ("[USER]", "cyan"),
-            "AI": ("[ASSISTANT]", "green"),
-            "System": ("[SYSTEM]", "yellow"),
-            "Tool": ("[TOOL]", "magenta"),
-            "Function": ("[FUNCTION]", "blue"),
-            "Chat": ("[CHAT]", "white"),
-            "default": ("[UNKNOWN]", "gray"),
-        }
-
-        self.STATUS_COLORS = {
-            "running": ("[RUNNING]", "yellow"),
-            "success": ("[SUCCESS]", "green"),
-            "error": ("[ERROR]", "red"),
-            "warning": ("[WARNING]", "yellow"),
-            "pending": ("[PENDING]", "gray"),
-        }
-
-        self.RICH_MESSAGE_STYLES = {
-            "Human": "cyan",
-            "AI": "green",
-            "System": "yellow",
-            "Tool": "magenta",
-            "Function": "blue",
-            "Chat": "white",
-            "default": "gray",
-        }
-
-        self.RICH_STATUS_STYLES = {
-            "running": "yellow",
-            "success": "green",
-            "error": "red",
-            "warning": "yellow",
-            "pending": "gray",
-        }
+        self.MESSAGE_COLORS = {}
+        self.STATUS_COLORS = {}
+        self.RICH_MESSAGE_STYLES = {}
+        self.RICH_STATUS_STYLES = {}
 
     def get_logger(self, name: str) -> logging.Logger:
         """获取 Logger 实例"""
@@ -192,13 +137,6 @@ class LoggerManager:
         else:
             content = str(msg)
 
-        if len(content) > max_chars:
-            content = content[:max_chars] + "\n... (truncated)"
-
-        lines = content.split("\n")
-        if len(lines) > max_lines:
-            content = "\n".join(lines[:max_lines]) + "\n... (truncated)"
-
         return content
 
     def info(self, message: str) -> None:
@@ -226,71 +164,6 @@ class LoggerManager:
         msg = "\n" + content + "\n"
         print(msg)
 
-    def _make_rich_panel(
-        self,
-        title: str,
-        content: str,
-        border_style: str = "blue",
-        width: int = 80,
-        title_style: str = "bold",
-        content_style: str = "",
-    ) -> Panel:
-        """创建 Rich 面板（带颜色）
-
-        Args:
-            title: 面板标题（边框上显示）
-            content: 面板内容
-            border_style: 边框颜色样式
-            width: 面板宽度
-            title_style: 标题样式
-            content_style: 内容样式（可指定颜色，如 "cyan", "green yellow" 等）
-        """
-        styled_title = Text(title, style=f"{title_style} {border_style}")
-
-        if content_style:
-            if content_style.startswith("code") or content_style.startswith("json"):
-                styled_content = Syntax(
-                    content,
-                    content_style.split(":")[0] if ":" in content_style else "python",
-                    theme="monokai",
-                    word_wrap=True,
-                )
-            else:
-                styled_content = Text(content, style=content_style)
-        else:
-            styled_content = Text(content)
-
-        return Panel(
-            styled_content,
-            title=styled_title,
-            border_style=border_style,
-            width=width,
-            expand=False,
-        )
-
-    def _make_type_panel(
-        self, msg_type: str, content: str, border_style: str = "blue", width: int = 80
-    ) -> Panel:
-        """创建带消息类型的面板
-
-        Args:
-            msg_type: 消息类型（如 USER, ASSISTANT, SYSTEM 等）
-            content: 面板内容
-            border_style: 边框颜色样式
-            width: 面板宽度
-        """
-        type_label = f"[{msg_type}]"
-        styled_title = Text(type_label, style=f"bold {border_style}")
-        styled_content = Text(content, style=border_style)
-
-        return Panel(
-            styled_content,
-            title=styled_title,
-            border_style=border_style,
-            width=width,
-            expand=False,
-        )
-
     def _make_panel(self, title: str, content: str, width: int = 80) -> str:
         """创建纯文本面板（无 ANSI 码）"""
         border = "=" * (width - 2)
@@ -317,22 +190,13 @@ class LoggerManager:
     ) -> None:
         """日志消息块 - 自动应用颜色"""
         full_title = f"{prefix} {title}"
-        panel = self._make_rich_panel(
-            full_title,
-            content,
-            border_style=color,
-            title_style="bold",
-            content_style=color,
-        )
-        self.console.print(panel)
+        self.console.print(f"{full_title}\n{content}")
 
     def log_step(
         self, step_num: int, step_name: str, status: str, details: str = ""
     ) -> None:
         """日志步骤信息 - 自动应用颜色"""
-        status_info = self.STATUS_COLORS.get(status, ("[?]", "white"))
-        status_text = status_info[0]
-        style = self.RICH_STATUS_STYLES.get(status, "white")
+        status_text = f"[{status.upper()}]"
 
         lines = [
             f"Step {step_num}: {step_name}",
@@ -350,32 +214,19 @@ class LoggerManager:
                 lines.append("    ... (truncated)")
 
         content = "\n".join(lines)
-        panel = self._make_rich_panel(
-            step_name,
-            content,
-            border_style=style,
-            title_style="bold",
-            content_style=style,
-        )
-        self.console.print(panel)
+        self.console.print(f"{step_name}\n{content}")
 
     def log_message_with_type(self, msg) -> None:
         """根据消息类型自动应用颜色并打印消息 - 边框显示消息类型"""
         msg_type = self.get_message_type_name(msg)
-        style = self.RICH_MESSAGE_STYLES.get(msg_type, "gray")
-
         content = self.format_message_content(msg, max_lines=20, max_chars=1000)
-
-        panel = self._make_type_panel(msg_type, content, border_style=style)
-        self.console.print(panel)
+        self.console.print(f"[{msg_type}]\n{content}")
 
     def log_workflow_step(
         self, step_name: str, description: str, status: str, extra_info: str = ""
     ) -> None:
         """通用工作流步骤日志输出 - 自动应用颜色"""
-        status_info = self.STATUS_COLORS.get(status, ("[?]", "blue"))
-        status_text = status_info[0]
-        style = self.RICH_STATUS_STYLES.get(status, "blue")
+        status_text = f"[{status.upper()}]"
 
         lines = [
             f"Step: {step_name}",
@@ -387,34 +238,19 @@ class LoggerManager:
             lines.append(f"\n{extra_info}")
 
         content = "\n".join(lines)
-        panel = self._make_rich_panel(
-            step_name,
-            content,
-            border_style=style,
-            title_style="bold",
-            content_style=style,
-        )
-        self.console.print(panel)
+        self.console.print(f"{step_name}\n{content}")
 
     def log_sql_query(
         self, sql: str, status: str = "success", result_info: str = ""
     ) -> None:
         """SQL 查询日志输出 - 自动应用颜色"""
         status_text = "[SUCCESS]" if status == "success" else "[ERROR]"
-        style = "green" if status == "success" else "red"
 
         content = f"SQL Query {status_text}\n\n{sql}"
         if result_info:
             content += f"\n\n{result_info}"
 
-        panel = self._make_rich_panel(
-            "SQL Query",
-            content,
-            border_style=style,
-            title_style="bold",
-            content_style="code:python",
-        )
-        self.console.print(panel)
+        self.console.print(f"SQL Query\n{content}")
 
     def log_result_table(
         self, title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10
@@ -423,11 +259,10 @@ class LoggerManager:
         from rich.table import Table
 
         if not headers or not rows:
-            panel = self._make_rich_panel(title, "No data", border_style="gray")
-            self.console.print(panel)
+            self.console.print(f"{title}\nNo data")
             return
 
-        table = Table(title=title, style="cyan", header_style="bold magenta")
+        table = Table(title=title)
 
         for h in headers:
             table.add_column(h)
@@ -442,7 +277,7 @@ class LoggerManager:
 
     def print_color(self, text: str, style: str = "info") -> None:
         """打印带颜色的文本"""
-        rprint(f"[{style}]{text}[/{style}]")
+        self.console.print(text)
 
     def print_table(
         self, data: list, headers: list = None, title: str = None, style: str = "info"
@@ -450,7 +285,7 @@ class LoggerManager:
         """打印带颜色的表格"""
         from rich.table import Table
 
-        table = Table(title=title, style=style)
+        table = Table(title=title)
         if headers:
             for h in headers:
                 table.add_column(h)
@@ -470,71 +305,3 @@ def get_logger(name: str) -> logging.Logger:
 def setup_logging(level: str = "INFO", enable_colors: bool = True):
     """配置全局日志"""
     return _logger_manager.setup_logging(level, enable_colors)
-
-
-def get_logger_manager() -> LoggerManager:
-    """获取 LoggerManager 实例"""
-    return _logger_manager
-
-
-def log_message_with_type(msg) -> None:
-    """根据消息类型自动应用颜色并打印消息"""
-    return _logger_manager.log_message_with_type(msg)
-
-
-def log_step(step_num: int, step_name: str, status: str, details: str = "") -> None:
-    """日志步骤信息 - 自动应用颜色"""
-    return _logger_manager.log_step(step_num, step_name, status, details)
-
-
-def log_workflow_step(
-    step_name: str, description: str, status: str, extra_info: str = ""
-) -> None:
-    """通用工作流步骤日志输出"""
-    return _logger_manager.log_workflow_step(step_name, description, status, extra_info)
-
-
-def log_sql_query(sql: str, status: str = "success", result_info: str = "") -> None:
-    """SQL 查询日志输出"""
-    return _logger_manager.log_sql_query(sql, status, result_info)
-
-
-def log_result_table(
-    title: str, headers: List[str], rows: List[List[Any]], max_rows: int = 10
-) -> None:
-    """结果表格日志输出"""
-    return _logger_manager.log_result_table(title, headers, rows, max_rows)
-
-
-def log_message_block(
-    prefix: str, title: str, content: str, color: str = "blue"
-) -> None:
-    """日志消息块"""
-    return _logger_manager.log_message_block(prefix, title, content, color)
-
-
-def log_separator(title: str = "", width: int = 80) -> None:
-    """日志分隔线"""
-    return _logger_manager.log_separator(title, width)
-
-
-def print_color(text: str, style: str = "info") -> None:
-    """打印带颜色的文本"""
-    return _logger_manager.print_color(text, style)
-
-
-def print_table(
-    data: list, headers: list = None, title: str = None, style: str = "info"
-) -> None:
-    """打印带颜色的表格"""
-    return _logger_manager.print_table(data, headers, title, style)
-
-
-def get_message_type_name(msg) -> str:
-    """获取消息类型名称"""
-    return _logger_manager.get_message_type_name(msg)
-
-
-def format_message_content(msg, max_lines: int = 15, max_chars: int = 500) -> str:
-    """格式化消息内容"""
-    return _logger_manager.format_message_content(msg, max_lines, max_chars)

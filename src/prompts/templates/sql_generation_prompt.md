@@ -12,7 +12,7 @@
    - 字段与别名必须使用方括号包裹。
    - ORDER BY 只能使用 SELECT 里显式字段/别名。
    - 聚合查询 GROUP BY 必须包含所有非聚合字段。
-3. **业务元数据**：业务表/字段/术语与分摊规则见 business/metadata.md。
+3. **业务元数据**：表名映射与分摊规则见当前业务 skill 的 references/metadata.md 与 references/business_rules.md。
 
 ## 数据上下文
 

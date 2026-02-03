@@ -73,15 +73,8 @@ class DataSourceManager:
 
         # 根据配置设置默认策略
         config = get_config()
-        if config and config.data_source.type in strategies:
+        if config and config.data_source.type:
             self.set_strategy(config.data_source.type)
-        # Fallback 逻辑
-        elif "postgresql" in strategies:
-            self.set_strategy("postgresql")
-        elif "sqlserver" in strategies:
-            self.set_strategy("sqlserver")
-        elif "excel" in strategies:
-            self.set_strategy("excel")
     
     def set_strategy(self, strategy_name: str):
         """
@@ -91,16 +84,27 @@ class DataSourceManager:
             strategy_name: 策略名称 (excel, postgresql, auto)
         """
         if strategy_name == "auto":
-            # 自动选择：优先PostgreSQL
-            if "postgresql" in self._available_strategies:
-                strategy_name = "postgresql"
-            elif "excel" in self._available_strategies:
-                strategy_name = "excel"
-            # Fallback to no strategy if none available
-            elif not self._available_strategies:
-                # Instead of raising error, maybe just log or stay None
-                # But existing logic raises error, let's keep it but make it clearer
-                raise ValueError("No available strategies to auto-select.")
+            config = get_config()
+            priority = {}
+            if config:
+                priority = config.data_source.data_source_priority or {}
+
+            if not priority:
+                raise ValueError(
+                    "data_source_priority is not configured in config.yaml for auto mode."
+                )
+
+            ordered = sorted(priority.items(), key=lambda item: item[1])
+            strategy_name = None
+            for name, _ in ordered:
+                if name in self._available_strategies:
+                    strategy_name = name
+                    break
+
+            if not strategy_name:
+                raise ValueError(
+                    "No available strategies match data_source_priority in config.yaml."
+                )
         
         if strategy_name not in self._available_strategies:
              # If specific strategy requested but not available, check if we can lazy-load it

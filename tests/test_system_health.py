@@ -1,151 +1,137 @@
 import os, sys
 import pytest
 import asyncio
-from langchain_core.messages import HumanMessage
+import sys
+import asyncio
+import time
 from pathlib import Path
 
+import pytest
+from langchain_core.messages import HumanMessage
+
 sys.path.append(str(Path(__file__).parent.parent))
-# 导入项目模块
-from src.agents.llm import get_llm
+
 from src.core.data_sources.manager import get_data_source_manager
-from src.skills.loader import SkillLoader
-from src.graph.graph import GraphWorkflow
-from src.config.logger_interface import (
-    setup_logging,
-    log_workflow_step,
-    log_sql_query,
-    log_message_block,
-    log_result_table,
-)
+from src.workflow.skill_aware import get_skill_workflow
+from src.config.settings import get_config
+from src.config.logger_interface import get_logger, setup_logging
+setup_logging(level="INFO")
+logger = get_logger("test_system_health")
 
 
 class TestSystemHealth:
     """系统健康检查测试套件"""
-
     def test_end_to_end_workflow(self):
         """测试端到端工作流"""
-        setup_logging(level="INFO")
-        print("\n🔍 测试端到端工作流...")
+        logger.info("\n🔍 测试端到端工作流...")
 
         async def _run():
-            # 1. 确保数据库可用
-            manager = get_data_source_manager()
-            manager._detect_available_strategies()
-            if not manager.is_strategy_available("postgresql"):
-                pytest.skip("PostgreSQL 策略不可用，跳过工作流测试")
-            manager.set_strategy("postgresql")
+            config = get_config()
+            data_source_type = config.data_source.type
 
-            # 2. 初始化工作流
-            workflow = GraphWorkflow()
+            try:
+                manager = get_data_source_manager()
+                manager._detect_available_strategies()
+            except ValueError as e:
+                pytest.skip(f"数据源策略不可用，跳过工作流测试: {e}")
+
+            if data_source_type == "auto":
+                manager.set_strategy("auto")
+            else:
+                if not manager.is_strategy_available(data_source_type):
+                    pytest.skip(f"{data_source_type} 策略不可用，跳过工作流测试")
+                manager.set_strategy(data_source_type)
+
+            workflow = get_skill_workflow("cost_allocation")
             graph = workflow.get_graph()
 
-            # 3. 准备查询 (使用文档中的示例问题)
-            query = "FY26 计划了多少 HR 费用预算？"
-            inputs = {"messages": [HumanMessage(content=query)], "user_query": query}
+            # query = "FY26 计划了多少 HR 费用预算？"
+            # query ="25财年实际分摊给CT的IT费用是多少？"
+            # query = "预算 vs 实际对比，IT Allocation 近3个月趋势分析"
+            query = "26财年采购的预算费用和25财年实际数比，变化是什么？"
+            inputs = {
+                "messages": [HumanMessage(content=query)],
+                "user_query": query,
+                "skill_name": "cost_allocation",
+            }
 
-            log_message_block("User", "Query", query, "cyan")
+            logger.info(f"User Query: {query}")
 
-            # 4. 执行并验证
             final_state = None
+            node_timings = {}
             try:
                 async for event in graph.astream(inputs, config={"recursion_limit": 15}):
                     for key, value in event.items():
-                        final_state = value  # 更新最后状态
+                        start_ts = time.perf_counter()
+                        final_state = value
 
-                        # 通用节点日志
-                        log_workflow_step(
-                            step_name=key,
-                            description=f"Node '{key}' completed execution",
-                            status="success",
-                        )
+                        if value.get("error_message"):
+                            logger.info(f"System Error: {value['error_message']}")
+
+                        logger.info(f"Node '{key}' completed execution: success")
 
                         if key == "analyze_intent":
                             intent = value.get("intent_analysis", "")
                             if isinstance(intent, str):
-                                log_message_block(
-                                    "Agent",
-                                    "Intent Analysis",
-                                    intent[:500] + "...",
-                                    "yellow",
-                                )
-                            else:
-                                log_message_block(
-                                    "Agent", "Intent Analysis", str(intent), "yellow"
-                                )
+                                logger.info(f"Agent Intent Analysis: {intent[:500]}...")
 
                         elif key == "generate_sql":
                             sql = value.get("sql_query")
                             if sql:
-                                log_sql_query(sql)
+                                logger.info(f"SQL Query:\n{sql}")
 
                         elif key == "validate_sql":
                             valid = value.get("sql_valid")
                             error = value.get("error_message")
                             status = "success" if valid else "error"
-                            log_workflow_step(
-                                "SQL Validation",
-                                f"Valid: {valid}",
-                                status,
-                                extra_info=error if error else "",
+                            logger.info(
+                                f"SQL Validation: Valid: {valid}, Status: {status}, Error: {error if error else ''}"
                             )
 
                         elif key == "execute_sql":
                             result = value.get("execution_result")
                             if result:
-                                # 尝试解析结果行数，如果是字符串
                                 if isinstance(result, str):
                                     rows = result.splitlines()
-                                    log_message_block(
-                                        "System",
-                                        "Execution Result",
-                                        f"Rows returned: {len(rows)}",
-                                        "blue",
+                                    logger.info(
+                                        f"System Execution Result: Rows returned: {len(rows)}"
                                     )
-                                    if len(rows) > 0:
-                                        # 简单打印前几行
+                                    if rows:
                                         preview = "\n".join(rows[:5])
-                                        log_message_block(
-                                            "System", "Result Preview", preview, "blue"
+                                        logger.info(
+                                            f"System Result Preview: {preview}"
                                         )
                                 elif isinstance(result, list):
-                                    # 如果是列表字典
-                                    if len(result) > 0:
+                                    if result:
                                         headers = list(result[0].keys())
-                                        rows = [list(r.values()) for r in result]
-                                        log_result_table("Query Results", headers, rows)
+                                        logger.info(
+                                            f"Query Results (rows={len(result)}): {headers}"
+                                        )
                                     else:
-                                        log_message_block(
-                                            "System",
-                                            "Execution Result",
-                                            "Empty result set",
-                                            "yellow",
+                                        logger.info(
+                                            "System Execution Result: Empty result set"
                                         )
                             else:
-                                log_message_block(
-                                    "System",
-                                    "Execution Result",
-                                    "No result returned",
-                                    "red",
-                                )
+                                logger.info("System Execution Result: No result returned")
 
                         elif key == "refine_answer":
                             messages = value.get("messages")
                             if messages:
                                 content = messages[-1].content
-                                log_message_block("AI", "Final Answer", content, "green")
+                                logger.info(f"AI Final Answer: {content}")
+
+                        elapsed = time.perf_counter() - start_ts
+                        node_timings.setdefault(key, 0.0)
+                        node_timings[key] += elapsed
             except Exception as e:
                 if "recursion" in str(e).lower():
                     print(f"\n⚠️ 达到最大递归深度 (预期内): {e}")
                 else:
                     raise e
 
-            # 5. 验证结果
-            print("✅ 端到端工作流测试完成")
-
         asyncio.run(_run())
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main(["-v", "-s", __file__]))
+    test_suite = TestSystemHealth()
+    test_suite.test_end_to_end_workflow()

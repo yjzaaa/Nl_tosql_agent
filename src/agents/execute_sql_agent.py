@@ -6,17 +6,15 @@ from typing import TYPE_CHECKING
 
 from src.core.data_sources.context_provider import get_data_source_context_provider
 from src.tools.common import ALL_TOOLS
-from src.config.logger import LoggerManager
+ 
 
 
 if TYPE_CHECKING:
     from workflow.graph import AgentState
 
 
-def execute_sql_node(state: "AgentState") -> "AgentState":
+def execute_sql_node(state: AgentState) -> AgentState:
     """SQL 执行节点 - 通过 DataSourceContextProvider 执行查询"""
-    LoggerManager().info(f"Starting execute_sql_node. SQL: {state.get('sql_query')}")
-
     sql = state.get("sql_query", "")
     context_provider = get_data_source_context_provider()
 
@@ -62,6 +60,25 @@ def execute_sql_node(state: "AgentState") -> "AgentState":
             cleaned_sql = cleaned_sql.strip("`").lstrip()
 
         ds_type = state.get("data_source_type")
+        if (ds_type == "sqlserver") or context_provider.is_sql_server_mode():
+            import re
+
+            match = re.search(r"\blimit\s+(\d+)\s*;?\s*$", cleaned_sql, re.IGNORECASE)
+            if match and "top" not in cleaned_sql.lower():
+                limit_n = match.group(1)
+                cleaned_sql = re.sub(
+                    r"^\s*select\s+",
+                    f"SELECT TOP {limit_n} ",
+                    cleaned_sql,
+                    flags=re.IGNORECASE,
+                )
+                cleaned_sql = re.sub(
+                    r"\blimit\s+\d+\s*;?\s*$",
+                    "",
+                    cleaned_sql,
+                    flags=re.IGNORECASE,
+                ).strip()
+
         df = context_provider.execute_sql(cleaned_sql, data_source_type=ds_type)
         state["execution_result"] = df.to_string(index=False)
         state["execution_data"] = df.to_dict(orient="records")

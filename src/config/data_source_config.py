@@ -23,7 +23,7 @@ def load_data_source_config(config_path: Optional[str] = None) -> Dict[str, Any]
         包含数据源配置的字典
     """
     if config_path is None:
-        config_path = "config_postgres.yaml"
+        config_path = "config.yaml"
 
     config_file_path = Path(config_path)
 

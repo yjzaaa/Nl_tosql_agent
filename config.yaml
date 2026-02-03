@@ -1,9 +1,8 @@
-
 # Application Configuration
 
 # LLM Configuration (Multi-provider support)
 model:
-  active: "zhipuai"  # Change this to switch providers: siliconflow, GLM-4.7, openrouter, ollama, zhipuai
+  active: "azure_openai" # Change this to switch providers: siliconflow, GLM-4.7, openrouter, ollama, zhipuai, azure_openai
   providers:
     siliconflow:
       provider: openai
@@ -50,6 +49,16 @@ model:
         extra_body:
           thinking:
             type: "enabled"
+    azure_openai:
+      provider: openai
+      model_name: ${OPENAI_MODEL_ID}
+      api_key: ${OPENAI_API_KEY}
+      base_url: ${OPENAI_BASE_URL}
+      temperature: 0.1
+      max_tokens: 4096
+      description: Azure OpenAI (gpt-4o)
+      model_kwargs:
+        api_version: ${OPENAI_API_VERSION}
 
 # Server Configuration
 server:
@@ -83,16 +92,55 @@ excel:
 
 # Data Source Configuration
 data_source:
-  type: "excel"  # Options: excel, postgresql, sqlserver, auto
+  type: "sqlserver" # Options: excel, postgresql, sqlserver, auto
   config: {}
-  
-  # SQL Server Configuration (Override via Environment Variables)
-  # MSSQL_HOST: "localhost"
-  # MSSQL_PORT: 1433
-  # MSSQL_DB: "master"
-  # MSSQL_USER: "sa"
-  # MSSQL_PASSWORD: ""
-  # MSSQL_DRIVER: "ODBC Driver 17 for SQL Server"
+  data_source_strategy: auto
+
+  postgresql:
+    type: postgresql
+    host: localhost
+    port: 5432
+    database: cost_allocation
+    user: postgres
+    password: "123456"
+    schema: public
+    pool_size: 5
+    max_overflow: 10
+    pool_timeout: 30
+    pool_recycle: 3600
+    connect_timeout: 10
+    statement_timeout: 30
+    max_retries: 3
+    retry_delay: 1
+
+  excel:
+    type: excel
+    file_paths:
+      cost_database: ""
+      rate_table: ""
+      cc_mapping: ""
+      cost_text_mapping: ""
+
+  sqlserver:
+    type: sqlserver
+    host: ${database_url}
+    port: ${database_port}
+    database: ${database_name}
+    user: ${database_username}
+    password: ${database_password}
+    driver: "ODBC Driver 17 for SQL Server"
+    schema: dbo
+
+  table_names:
+    cost_database: SSME_FI_InsightBot_CostDataBase
+    rate_table: SSME_FI_InsightBot_Rate
+    cc_mapping: cc_mapping
+    cost_text_mapping: cost_text_mapping
+
+  data_source_priority:
+    sqlserver: 1
+    postgresql: 2
+    excel: 3
 
 # Logging Configuration
 logging:

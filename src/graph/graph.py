@@ -14,6 +14,7 @@ from src.agents.execute_sql_agent import execute_sql_node
 from src.agents.result_review_agent import review_result_node
 from src.agents.refine_answer_agent import refine_answer_node
 from src.agents.visualization_agent import visualization_node
+from src.skills.middleware.skill_middleware import select_skill_node
 
 logger = get_logger("graph")
 
@@ -32,9 +33,13 @@ class AgentState(TypedDict):
     review_message: Annotated[Optional[str], lambda x, y: y]
     table_names: Annotated[Optional[List[str]], lambda x, y: y]
     data_source_type: Annotated[Optional[str], lambda x, y: y]
+    data_source_schema: Annotated[Optional[Dict[str, Any]], lambda x, y: y]
     error_message: Annotated[Optional[str], lambda x, y: y]
     retry_count: Annotated[Optional[int], lambda x, y: y]
     chart_config: Annotated[Optional[Dict[str, Any]], lambda x, y: y] # Added for chart config
+    skill_context: Annotated[Optional[Dict[str, Any]], lambda x, y: y]
+    skill_selected_by: Annotated[Optional[str], lambda x, y: y]
+    skill_confidence: Annotated[Optional[float], lambda x, y: y]
 
 
 class GraphWorkflow:
@@ -46,6 +51,7 @@ class GraphWorkflow:
         workflow = StateGraph(AgentState)
 
         # Add nodes
+        workflow.add_node("select_skill", select_skill_node)
         workflow.add_node("load_context", load_context_node)
         workflow.add_node("analyze_intent", analyze_intent_node)
         workflow.add_node("generate_sql", generate_sql_node)
@@ -56,9 +62,10 @@ class GraphWorkflow:
         workflow.add_node("visualization", visualization_node)
 
         # Set entry point
-        workflow.set_entry_point("analyze_intent")
+        workflow.set_entry_point("select_skill")
 
         # Add edges
+        workflow.add_edge("select_skill", "analyze_intent")
         workflow.add_edge("analyze_intent", "load_context")
         workflow.add_edge("load_context", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
@@ -100,7 +107,7 @@ class GraphWorkflow:
     def _route_after_validation(self, state: AgentState) -> Literal["execute_sql", "generate_sql", "refine_answer"]:
         if state.get("sql_valid"):
             return "execute_sql"
-        if state.get("retry_count", 0) >= 5:
+        if state.get("retry_count", 0) >= 3:
             return "refine_answer"
         return "generate_sql"
 
@@ -108,7 +115,7 @@ class GraphWorkflow:
         error = state.get("error_message", "")
         if not error:
             return "review_result"
-        if state.get("retry_count", 0) >= 5:
+        if state.get("retry_count", 0) >= 3:
             return "review_result"
         if state.get("retry_count", 0) > 2:
             state["intent_analysis"] = None
@@ -118,7 +125,7 @@ class GraphWorkflow:
     def _route_after_review(self, state: AgentState) -> Literal["refine_answer", "generate_sql", "analyze_intent"]:
         if state.get("review_passed"):
             return "refine_answer"
-        if state.get("retry_count", 0) >= 5:
+        if state.get("retry_count", 0) >= 3:
             return "refine_answer"
         if state.get("retry_count", 0) > 2:
             state["intent_analysis"] = None

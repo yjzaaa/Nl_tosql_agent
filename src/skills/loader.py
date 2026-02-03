@@ -52,6 +52,7 @@ class Skill:
         return self.modules.get(name)
 
     def get_module_content(self, name: str) -> str:
+        
         module = self.get_module(name)
         if module:
             return module.load_content()
@@ -205,29 +206,6 @@ class SkillLoader:
 
             skill.config = self._load_skill_config(skill_dir)
 
-            for module_file in skill_dir.glob("*.md"):
-                if module_file.name != "SKILL.md":
-                    module = SkillModule(
-                        name=module_file.stem,
-                        path=module_file
-                    )
-                    skill.add_module(module)
-
-            for module_file in skill_dir.glob("*.json"):
-                module = SkillModule(
-                    name=module_file.stem,
-                    path=module_file
-                )
-                skill.add_module(module)
-
-            for module_file in skill_dir.glob("*.yaml"):
-                if module_file.name not in ["config.yaml"]:
-                    module = SkillModule(
-                        name=module_file.stem,
-                        path=module_file
-                    )
-                    skill.add_module(module)
-
             references_dir = skill_dir / "references"
             if references_dir.exists():
                 for ref_file in references_dir.glob("*.md"):
@@ -236,21 +214,6 @@ class SkillLoader:
                         path=ref_file
                     )
                     skill.add_module(module)
-
-                for ref_file in references_dir.glob("*.json"):
-                    module = SkillModule(
-                        name=ref_file.stem,
-                        path=ref_file
-                    )
-                    skill.add_module(module)
-
-                for ref_file in references_dir.glob("*.yaml"):
-                    if ref_file.name not in ["config.yaml"]:
-                        module = SkillModule(
-                            name=ref_file.stem,
-                            path=ref_file
-                        )
-                        skill.add_module(module)
 
             return skill
 

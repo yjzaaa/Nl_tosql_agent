@@ -93,233 +93,188 @@ def get_data_source_context(
     return "\n".join(context_lines)
 
 
-INTENT_ANALYSIS_PROMPT = """
-You are an expert SQL query analyzer for a cost allocation database.
-
-Your task is to analyze the user's natural language query and determine:
-1. Query intent (query, aggregate, filter, join, etc.)
-2. Tables involved
-3. Columns needed
-4. Filter conditions
-5. Grouping requirements
-6. Aggregation functions needed
-7. Sorting requirements
-8. Limit requirements
-
-## Database Context
-{database_context}
-
-## User Query
-{user_query}
-
-## Instructions
-1. Analyze the user query to understand the intent
-2. Identify which tables are relevant to the query
-3. Extract any filters, groupings, aggregations mentioned
-4. Determine the query type (simple, aggregate, join, complex)
-5. Provide confidence score (0.0 to 1.0) for your analysis
-
-## Output Format
-Return a JSON object with the following structure:
-{{
-  "intent_type": "string",
-  "confidence": 0.0,
-  "entities": [
-    {{"type": "table", "value": "table_name"}},
-    {{"type": "column", "value": "column_name"}}
-  ],
-  "query_type": "simple|aggregate|join|complex",
-  "filters": [
-    {{"column": "col_name", "value": "val", "operator": "="}}
-  ],
-  "groupings": ["col1", "col2"],
-  "aggregations": [
-    {{"column": "col_name", "function": "SUM|COUNT|AVG|MAX|MIN"}}
-  ],
-  "sort_order": {{"column": "col_name", "direction": "ASC|DESC"}},
-  "limit": null,
-  "explanation": "Brief explanation of the analysis"
-}}
-"""
-
-
 SQL_GENERATION_PROMPT = """
-You are an expert SQL query generator for a cost allocation database.
+你是专业的 SQL 查询生成器。
 
-Your task is to generate a PostgreSQL SQL query based on the user's natural language query
-and the intent analysis provided.
+你的任务是基于用户问题与意图分析生成 SQL 查询。
 
-## Database Context
+## 数据库上下文（来自 skill）
 {database_context}
 
-## User Query
+## 用户问题
 {user_query}
 
-## Intent Analysis
+## 意图分析
 {intent_analysis}
 
-## Instructions
-1. Generate a valid PostgreSQL SQL query that answers the user's question
-2. Use the database schema information provided
-3. Follow the PostgreSQL SQL generation rules
-4. Ensure the query is efficient and uses appropriate indexes
-5. Handle NULL values properly
-6. Use double quotes for column names if they might be reserved words
-7. Return only the SQL query, no explanations
+## 错误上下文
+{error_context}
 
-## Important Notes
-- Cost amounts: Use ABS() when calculating allocation amounts
-- Date handling: Use appropriate PostgreSQL date functions
-- Filtering: Use appropriate WHERE clauses
-- Grouping: Use GROUP BY when aggregating
-- Limit: Add LIMIT clause to prevent excessive results
+## skill 上下文
+{skill_context}
 
-## Output Format
-Return ONLY the SQL query, no markdown code blocks, no explanations.
+## SQL 规则（来自 skill / 数据源）
+{sql_rules}
 
-Example:
-SELECT function, SUM(amount) as total_cost
-FROM SSME_FI_InsightBot_CostDataBase
-GROUP BY function
-ORDER BY total_cost DESC
-LIMIT 10
+## 指令
+1. 生成能够回答用户问题的有效 SQL 查询
+2. 使用提供的数据库 schema 信息
+3. 遵循 SQL 生成规则
+4. 保证查询高效并使用合适索引
+5. 正确处理 NULL 值
+6. 如字段名可能为保留字或含特殊字符，请使用双引号
+7. 只返回 SQL，不要解释
+
+## 重要说明
+- 使用合适的 WHERE 条件
+- 需要聚合时使用 GROUP BY
+- 仅在规则要求时添加结果限制
+
+## 输出格式
+仅返回 SQL 语句，不要 Markdown 代码块，不要解释。
+
+示例：
+SELECT col_a, SUM(col_b) AS total_value
+FROM some_table
+GROUP BY col_a
+ORDER BY total_value DESC
 """
 
 
 SQL_VALIDATION_PROMPT = """
-You are an expert SQL query validator.
+你是专业的 SQL 查询校验器。
 
-Your task is to validate the SQL query and identify any issues.
+你的任务是校验 SQL 查询并识别问题。
 
-## Database Context
+## 数据库上下文（来自 skill）
 {database_context}
 
-## SQL Query to Validate
+## 待校验 SQL
 {sql_query}
 
-## Instructions
-1. Check for SQL syntax errors
-2. Verify table and column names exist in the schema
-3. Check for proper JOIN conditions
-4. Validate WHERE clauses
-5. Ensure proper GROUP BY and HAVING usage
-6. Check for potential performance issues
-7. Validate data type compatibility
+## 指令
+1. 检查 SQL 语法错误
+2. 验证表与字段是否存在于 schema
+3. 检查 JOIN 条件是否正确
+4. 校验 WHERE 子句
+5. 确保 GROUP BY 与 HAVING 使用正确
+6. 检查潜在性能问题
+7. 验证数据类型兼容性
 
-## Validation Checks
-- [ ] Tables exist in schema
-- [ ] Columns exist in respective tables
-- [ ] JOIN syntax is correct
-- [ ] WHERE clauses are valid
-- [ ] GROUP BY includes all non-aggregated columns
-- [ ] HAVING is used correctly
-- [ ] No syntax errors
+## 校验清单
+- [ ] 表存在于 schema
+- [ ] 字段存在于对应表
+- [ ] JOIN 语法正确
+- [ ] WHERE 子句有效
+- [ ] GROUP BY 包含所有非聚合字段
+- [ ] HAVING 使用正确
+- [ ] 无语法错误
 
-## Output Format
-Return a JSON object with the following structure:
+## 输出格式
+返回 JSON 对象，结构如下：
 {{
-  "is_valid": true|false,
-  "issues": ["issue1", "issue2"],
-  "suggestions": ["suggestion1", "suggestion2"],
-  "parsed_query": "normalized query if needed"
+    "is_valid": true|false,
+    "issues": ["issue1", "issue2"],
+    "suggestions": ["suggestion1", "suggestion2"],
+    "parsed_query": "normalized query if needed"
 }}
 
-If the query is valid, return:
+如果查询有效，返回：
 {{
-  "is_valid": true,
-  "issues": [],
-  "suggestions": [],
-  "parsed_query": null
+    "is_valid": true,
+    "issues": [],
+    "suggestions": [],
+    "parsed_query": null
 }}
 """
 
 
 RESULT_REVIEW_PROMPT = """
-You are an expert SQL result reviewer.
+你是专业的 SQL 结果评审员。
 
-Your task is to review the query result and determine if it properly answers the user's question.
+你的任务是评审查询结果是否正确回答了用户问题。
 
-## Original User Query
+## 原始用户问题
 {user_query}
 
-## SQL Query Executed
+## 已执行的 SQL
 {sql_query}
 
-## Query Result
+## 查询结果
 {execution_result}
 
-## Instructions
-1. Review if the result answers the user's question
-2. Check if the result format is appropriate
-3. Identify any anomalies or unexpected results
-4. Provide confidence score (0.0 to 1.0) for the review
-5. If issues are found, provide suggestions for improvement
+## 指令
+1. 评估结果是否回答了用户问题
+2. 检查结果格式是否合适
+3. 识别异常或不符合预期的结果
+4. 给出评审置信度（0.0 到 1.0）
+5. 如发现问题，给出改进建议
 
-## Review Criteria
-- [ ] Result directly answers the question
-- [ ] Result format is appropriate (table, summary, single value)
-- [ ] No obvious errors or anomalies
-- [ ] Result is complete and accurate
-- [ ] Result is interpretable by the user
+## 评审标准
+- [ ] 结果直接回答问题
+- [ ] 结果格式合适（表格/摘要/单值等）
+- [ ] 无明显错误或异常
+- [ ] 结果完整且准确
+- [ ] 结果可被用户理解
 
-## Output Format
-Return a JSON object with the following structure:
+## 输出格式
+返回 JSON 对象，结构如下：
 {{
-  "passed": true|false,
-  "confidence": 0.0,
-  "issues": ["issue1", "issue2"],
-  "suggestions": ["suggestion1", "suggestion2"],
-  "refined_answer": "Natural language explanation of the result"
+    "passed": true|false,
+    "confidence": 0.0,
+    "issues": ["issue1", "issue2"],
+    "suggestions": ["suggestion1", "suggestion2"],
+    "refined_answer": "对结果的自然语言解释"
 }}
 
-If the result is good, provide a clear natural language explanation of what the result shows.
+如果结果良好，请提供清晰的自然语言说明。
 """
 
 
 ANSWER_REFINEMENT_PROMPT = """
-You are an expert in refining database query results into clear, natural language answers.
+你是将数据库查询结果优化为清晰自然语言回答的专家。
 
-Your task is to create a clear, helpful answer to the user's question based on the query result.
+你的任务是基于查询结果，生成清晰且有帮助的回答。
 
-## Original User Query
+## 原始用户问题
 {user_query}
 
-## SQL Query Executed
+## 已执行的 SQL
 {sql_query}
 
-## Query Result
+## 查询结果
 {execution_result}
 
-## Review Feedback
+## 评审反馈
 {review_feedback}
 
-## Instructions
-1. Create a clear, concise natural language answer
-2. Highlight key insights from the data
-3. Use appropriate formatting (tables, bullet points, etc.)
-4. Be specific with numbers and percentages
-5. Provide context and interpretation where helpful
-6. Avoid technical jargon when possible
-7. If there are multiple interpretations, address them
+## 指令
+1. 生成清晰、简洁的自然语言回答
+2. 突出关键结论/洞察
+3. 使用合适的格式（表格、列表等）
+4. 数字与比例要具体
+5. 必要时提供上下文解读
+6. 尽量避免技术术语
+7. 如存在多种解释，需说明
 
-## Answer Structure
-- Direct answer to the question
-- Key findings / insights
-- Supporting details
-- Recommendations (if applicable)
+## 回答结构
+- 直接回答问题
+- 关键发现/洞察
+- 佐证细节
+- 建议（如适用）
 
-## Output Format
-Provide a natural language answer that is:
-- Clear and easy to understand
-- Accurate based on the data
-- Helpful and informative
-- Well-formatted and readable
+## 输出格式
+输出自然语言回答，要求：
+- 清晰易懂
+- 基于数据准确
+- 有帮助且信息充分
+- 排版良好
 
-Example:
-根据查询结果，各功能类型的成本总额如下：
-- IT: 139,274,913.84元
-- HR: 70,191,482.78元
-- Procurement: 25,657,466.00元
+示例：
+根据查询结果，各类别的汇总数值如下：
+- A: 139,274,913.84
+- B: 70,191,482.78
+- C: 25,657,466.00
 
-IT功能成本最高，占总成本的约55%。HR和Procurement成本分别为28%和17%。
+A 类别最高，占总量的约 55%。B 和 C 分别为 28% 和 17%。
 """

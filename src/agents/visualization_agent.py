@@ -1,11 +1,12 @@
+from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, Any, List
 import json
 from langchain_core.messages import HumanMessage
 
-from src.agents.llm import get_llm
+from src.core.llm import get_llm
 from src.prompts.manager import render_prompt_template
-from src.config.logger import LoggerManager
+ 
 
 if TYPE_CHECKING:
     from workflow.graph import AgentState
@@ -43,13 +44,13 @@ Return a JSON object with the following structure:
 If the data is not suitable for a chart (e.g., single value or too complex), set "chart_type" to "table".
 """
 
-def visualization_node(state: "AgentState") -> "AgentState":
+def visualization_node(state: AgentState) -> AgentState:
     """Visualization Node - Generates chart configuration based on data"""
-    LoggerManager().info("Starting visualization_node")
+    
     
     execution_data = state.get("execution_data")
     if not execution_data:
-        LoggerManager().warning("No execution data available for visualization")
+        
         return state
 
     user_query = state.get("user_query", "")
@@ -63,7 +64,7 @@ def visualization_node(state: "AgentState") -> "AgentState":
         data_sample=json.dumps(data_sample, ensure_ascii=False, indent=2)
     )
     
-    llm = get_llm()
+    llm = state.get("llm") or get_llm()
     
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
@@ -71,10 +72,10 @@ def visualization_node(state: "AgentState") -> "AgentState":
         
         chart_config = json.loads(content)
         state["chart_config"] = chart_config
-        LoggerManager().info(f"Generated chart config: {chart_config}")
+        
         
     except Exception as e:
-        LoggerManager().error(f"Visualization generation failed: {e}")
+        
         # Don't fail the workflow, just no chart
         state["chart_config"] = {"error": str(e)}
 

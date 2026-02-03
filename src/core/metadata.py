@@ -40,6 +40,7 @@ def resolve_table_names(
     tables = []
 
     keyword_map = skill_metadata.get("keyword_table_map", {})
+    tables_map = skill_metadata.get("tables", {})
 
     for keyword, table_list in keyword_map.items():
         if keyword.lower() in query_lower:
@@ -54,15 +55,23 @@ def resolve_table_names(
 
     # If no specific tables detected, return default tables
     if not tables:
-        return skill_metadata.get("default_tables", [])
+        default_tables = skill_metadata.get("default_tables", [])
+        mapped = []
+        for table in default_tables:
+            real_name = tables_map.get(table, table)
+            if real_name not in mapped:
+                mapped.append(real_name)
+        return mapped
 
     # Remove duplicates while preserving order
     seen = set()
     result = []
     for table in tables:
-        if table not in seen:
-            seen.add(table)
-            result.append(table)
+        # Map logical name to physical name if provided
+        real_name = tables_map.get(table, table)
+        if real_name not in seen:
+            seen.add(real_name)
+            result.append(real_name)
 
     return result
 
@@ -92,7 +101,11 @@ def get_table_schema(
     # Check if table_name is an alias key in "tables"
     real_name = tables_map.get(table_name, table_name)
 
-    return schemas.get(real_name, {})
+    if schemas:
+        return schemas.get(real_name, {})
+
+    # No schema details provided in metadata
+    return {}
 
 
 def get_all_tables(skill_metadata: Optional[Dict[str, Any]] = None) -> List[str]:
@@ -106,7 +119,21 @@ def get_all_tables(skill_metadata: Optional[Dict[str, Any]] = None) -> List[str]
         return []
 
     schemas = skill_metadata.get("table_schemas", {})
-    return list(schemas.keys())
+    if schemas:
+        return list(schemas.keys())
+
+    tables_map = skill_metadata.get("tables", {})
+    # Prefer physical table names (values) if provided
+    if tables_map:
+        seen = set()
+        result = []
+        for value in tables_map.values():
+            if value not in seen:
+                seen.add(value)
+                result.append(value)
+        return result
+
+    return []
 
 
 def get_table_relationships(
@@ -163,61 +190,88 @@ def get_sql_generation_rules(
         String containing SQL generation rules
     """
 
-    # If the skill provides specific SQL generation rules (e.g. in a sql_rules.md module), use them.
-    if skill and hasattr(skill, "get_module_content"):
-        content = skill.get_module_content("sql_rules")
-        if content:
-            return content
 
     # Fallback to generic rules if not provided by skill
     if data_source_type.lower() == "postgresql":
         return """
-## PostgreSQL SQL Generation Rules
+## PostgreSQL SQL 生成规则
 
-### General Rules
-- Use standard SQL syntax compatible with PostgreSQL
-- Use double quotes (") for column names if they contain spaces or special characters.
-- Column names are case-sensitive when quoted.
+### 通用规则
+- 使用与 PostgreSQL 兼容的标准 SQL 语法
+- 字段名包含空格或特殊字符时使用双引号 (")
+- 被双引号包裹的字段名区分大小写
 
-### Date/Time Functions
-- Use standard PostgreSQL date functions.
+### 日期/时间函数
+- 使用 PostgreSQL 标准日期函数
 
-### Numeric Functions
-- Use ABS() for absolute value if dealing with negative allocation amounts.
-- Use COALESCE(col, 0) to handle NULLs.
+### 数值函数
+- 处理负数金额时使用 ABS()
+- 使用 COALESCE(col, 0) 处理 NULL
 
-### JOIN Syntax
-- Use LEFT JOIN typically.
+### JOIN 语法
+- 通常使用 LEFT JOIN
+"""
+    if data_source_type.lower() in {"sqlserver", "mssql", "ms_sql", "sql_server"}:
+        return """
+## SQL Server SQL 生成规则
+
+### 通用规则
+- 使用 SQL Server T-SQL 语法
+- 字段名包含空格或特殊字符时使用方括号 [] 或双引号 (")
+- 字符串字面量使用单引号 (')
+
+### 日期/时间函数
+- 需要时使用 YEAR(date_col)、MONTH(date_col)
+- 日期转换使用 CAST/CONVERT
+### Sql Server SQL 生成规则
+- 必须使用[]包裹包含空格或特殊字符的字段名
+### 数值函数
+- 处理负数金额时使用 ABS()
+- 使用 COALESCE(col, 0) 处理 NULL
+
+### JOIN 语法
+- 通常使用 LEFT JOIN
+
+### 结果限制
+- 使用 SELECT TOP (N) 或 OFFSET/FETCH
+- 禁止使用 LIMIT
+
+### NULL 处理
+- 使用 COALESCE(value, default)
+- 禁止使用 IFNULL()
+
+### 类型转换
+- 使用 CAST(col AS FLOAT) 或 CAST(col AS DECIMAL(18, 4))
 """
     else:
         return """
-## SQLite/Excel SQL Generation Rules
+    ## SQLite/Excel SQL 生成规则
 
-### General Rules
-- Use SQLite syntax (for Excel data source)
-- Table names: Sheet names from Excel
-- Case-insensitive column names
-- Use single quotes (') for string literals
+    ### 通用规则
+    - 使用 SQLite 语法（用于 Excel 数据源）
+    - 表名：Excel 的工作表名称
+    - 字段名不区分大小写
+    - 字符串字面量使用单引号 (')
 
-### Date/Time Functions
-- Use strftime('%Y', DateCol) for year extraction
-- Use strftime('%m', DateCol) for month extraction
-- Do NOT use YEAR() or MONTH() functions
+    ### 日期/时间函数
+    - 使用 strftime('%Y', DateCol) 提取年份
+    - 使用 strftime('%m', DateCol) 提取月份
+    - 禁止使用 YEAR() 或 MONTH()
 
-### String Functions
-- Use || for string concatenation
-- Use UPPER(), LOWER() for case conversion
-- Use SUBSTR() for string slicing
-- Use TRIM() for removing whitespace
+    ### 字符串函数
+    - 使用 || 进行字符串拼接
+    - 使用 UPPER()/LOWER() 进行大小写转换
+    - 使用 SUBSTR() 进行字符串切片
+    - 使用 TRIM() 去除空白
 
-### Limiting Results
-- Use LIMIT N (do NOT use TOP N)
+    ### 结果限制
+    - 使用 LIMIT N（禁止使用 TOP N）
 
-### NULL Handling
-- Use COALESCE(value, default) for NULL replacement
-- Do NOT use ISNULL()
+    ### NULL 处理
+    - 使用 COALESCE(value, default) 替换 NULL
+    - 禁止使用 ISNULL()
 
-### Type Conversion
-- Use CAST(col AS REAL) for numeric conversion
-- Use CAST(col AS TEXT) for string conversion
-"""
+    ### 类型转换
+    - 使用 CAST(col AS REAL) 进行数值转换
+    - 使用 CAST(col AS TEXT) 进行字符串转换
+    """
